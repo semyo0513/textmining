@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>텍스트마이닝 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0f1117;--bg2:#1a1d27;--bg3:#232638;--bg4:#2a2e42;
+  --accent:#6c63ff;--a2:#ff6584;--a3:#43e97b;--a4:#38bdf8;
+  --text:#e8eaf6;--text2:#9fa8da;--text3:#616999;
+  --border:#2e3250;
+  --pos:#43e97b;--neg:#ff6584;--neu:#9fa8da;
+}
+html,body{height:100%;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);}
+#app{display:flex;flex-direction:column;height:100%;}
+
+/* ── 오버레이/로딩 ── */
+.overlay{position:fixed;inset:0;background:rgba(15,17,23,.92);z-index:8000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+.overlay.hide{display:none;}
+.spinner{width:44px;height:44px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.ov-msg{font-size:14px;color:var(--text2);}
+.ov-sub{font-size:12px;color:var(--text3);}
+
+/* ── 시트선택 화면 ── */
+#select-screen{position:fixed;inset:0;background:var(--bg);z-index:7000;display:flex;align-items:center;justify-content:center;}
+#select-screen.hide{display:none;}
+.sel-card{background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:40px;max-width:460px;width:90%;text-align:center;}
+.sel-card h2{font-size:24px;font-weight:900;color:var(--accent);margin-bottom:6px;}
+.sel-card p{font-size:13px;color:var(--text3);margin-bottom:24px;}
+.sel-card select,.sel-card input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:12px;}
+.sel-card button{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;}
+.sel-card button:hover{background:#5753d8;}
+.sel-card .or-divider{color:var(--text3);font-size:12px;margin:10px 0;position:relative;}
+.sel-card .or-divider::before,.sel-card .or-divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:var(--border);}
+.sel-card .or-divider::before{left:0;} .sel-card .or-divider::after{right:0;}
+.sel-card .csv-zone{border:2px dashed var(--border);border-radius:10px;padding:20px;cursor:pointer;margin-bottom:12px;transition:border-color .2s;}
+.sel-card .csv-zone:hover{border-color:var(--accent);}
+.sel-card .csv-zone p{font-size:13px;color:var(--text3);margin:0;}
+.sel-card .csv-zone.drag-over{border-color:var(--accent);background:rgba(108,99,255,.06);}
+.sel-card .tmpl-link{font-size:12px;color:var(--accent);cursor:pointer;text-decoration:underline;}
+
+/* ── 헤더 ── */
+#header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;gap:10px;height:50px;flex-shrink:0;}
+#header h1{font-size:15px;font-weight:700;color:var(--text);}
+#header h1 span{color:var(--accent);}
+.hbadge{background:var(--accent);color:#fff;font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap;}
+#hd-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+#sheet-sel{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 8px;font-size:12px;}
+.hbtn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.hbtn:hover{background:#5753d8;}
+.hbtn.csv{background:var(--a3);color:var(--bg);}
+.hbtn.csv:hover{background:#30c96a;}
+
+/* ── 탭 ── */
+#tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;}
+.tb{padding:9px 15px;cursor:pointer;font-size:13px;color:var(--text3);border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none;}
+.tb:hover{color:var(--text2);}
+.tb.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* ── 콘텐츠 ── */
+#content{flex:1;overflow:auto;padding:16px;}
+.tp{display:none;}.tp.active{display:block;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;}
+.ct{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.hint{font-size:11px;color:var(--text3);font-weight:400;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:700px){.g2{grid-template-columns:1fr;}}
+
+/* ── 통계박스 ── */
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;}
+.sb{background:var(--bg3);border-radius:10px;padding:12px 14px;border:1px solid var(--border);}
+.sb .v{font-size:26px;font-weight:800;color:var(--accent);}
+.sb .l{font-size:11px;color:var(--text3);margin-top:3px;}
+
+/* ── 품사 필터 ── */
+.ptb{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;align-items:center;}
+.ptb label{display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;
+  background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;transition:all .2s;}
+.ptb label:hover{border-color:var(--accent);}
+.ptb input[type=checkbox]{accent-color:var(--accent);}
+.ptb .an{border-color:var(--a4);color:var(--a4);}
+.ptb .av{border-color:var(--a3);color:var(--a3);}
+.ptb .aa{border-color:var(--a2);color:var(--a2);}
+.ptb-lbl{font-size:12px;color:var(--text3);}
+.ptb select{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 8px;font-size:12px;}
+
+/* ── 워드클라우드 ── */
+#wc-outer{width:100%;height:400px;overflow:hidden;background:var(--bg3);border-radius:10px;}
+#wc-svg{width:100%;height:100%;}
+.ww{cursor:pointer;transition:opacity .15s;}.ww:hover{opacity:.6;}
+
+/* ── 단어목록 패널 ── */
+#wl-wrap{background:var(--bg3);border-radius:10px;padding:11px;max-height:400px;overflow-y:auto;border:1px solid var(--border);}
+.wl-hd{font-size:11px;color:var(--text3);margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;}
+.wl-hd button{background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;}
+.wl-item{display:flex;align-items:center;gap:7px;padding:3px 1px;border-bottom:1px solid var(--border);font-size:12px;}
+.wl-item input{accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
+.wl-w{color:var(--text);cursor:pointer;flex:1;}.wl-w:hover{color:var(--accent);}
+.wl-bar{height:5px;background:var(--accent);border-radius:3px;opacity:.45;}
+.wl-f{color:var(--text3);min-width:24px;text-align:right;}
+
+/* ── 검색바 ── */
+.sbar{display:flex;gap:8px;margin-bottom:11px;}
+.sbar input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;}
+.sbar input:focus{outline:none;border-color:var(--accent);}
+.sbar button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 16px;cursor:pointer;font-size:13px;font-weight:700;white-space:nowrap;}
+.sbar button:hover{background:#5753d8;}
+
+/* ── SVG 캔버스 ── */
+.net-svg{width:100%;height:480px;background:var(--bg3);border-radius:10px;display:block;}
+
+/* ── 인물 카드 ── */
+.char-card{background:var(--bg3);border-radius:10px;padding:14px;border:1px solid var(--border);}
+.char-name{font-size:19px;font-weight:900;color:var(--accent);margin-bottom:6px;}
+.emom{height:15px;border-radius:8px;background:var(--bg);overflow:hidden;display:flex;margin:5px 0;}
+.emom .pb{background:linear-gradient(90deg,var(--pos),var(--a4));transition:width .7s;}
+.emom .nb{background:linear-gradient(90deg,var(--neg),#fb923c);transition:width .7s;}
+.emo-b{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;margin:2px;}
+.ep{background:rgba(67,233,123,.15);color:var(--pos);border:1px solid rgba(67,233,123,.3);}
+.en{background:rgba(255,101,132,.15);color:var(--neg);border:1px solid rgba(255,101,132,.3);}
+.csb{display:block;width:100%;text-align:left;background:var(--bg4);border:1px solid var(--border);border-radius:8px;
+  padding:7px 11px;margin-top:5px;cursor:pointer;font-size:12px;line-height:1.6;color:var(--text);transition:all .15s;}
+.csb:hover{background:var(--bg2);border-color:var(--accent);}
+.csm{font-size:10px;color:var(--text3);margin-bottom:3px;}
+.stage-tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;margin-right:3px;font-weight:700;}
+.s-발단{background:rgba(108,99,255,.2);color:#6c63ff;}
+.s-전개{background:rgba(56,189,248,.2);color:#38bdf8;}
+.s-위기{background:rgba(251,146,60,.2);color:#fb923c;}
+.s-절정{background:rgba(244,114,182,.2);color:#f472b6;}
+.s-결말{background:rgba(167,139,250,.2);color:#a78bfa;}
+.etag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700;}
+
+/* ── 인물 입력 ── */
+.char-input-area{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center;}
+.char-input-area input{flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 11px;color:var(--text);font-size:13px;}
+.char-input-area input:focus{outline:none;border-color:var(--accent);}
+.char-input-area button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;}
+.char-hint{font-size:11px;color:var(--text3);}
+#char-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.char-tag{background:var(--bg3);border:1px solid var(--accent);color:var(--accent);border-radius:20px;padding:3px 10px;font-size:12px;display:flex;align-items:center;gap:5px;}
+.char-tag button{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0;}
+
+/* ── TF-IDF ── */
+.tfi{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+.tfi:hover .tfw{color:var(--accent);}
+.tfrk{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;}
+.tfw{font-size:14px;font-weight:700;min-width:65px;}
+.tfbars{flex:1;display:flex;flex-direction:column;gap:3px;}
+.tfbr{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3);}
+.tfbi{height:8px;border-radius:4px;transition:width .5s;}
+.tfscore{font-size:10px;font-weight:700;min-width:40px;text-align:right;}
+
+/* ── 이북리더 ── */
+.ebw{max-width:680px;margin:0 auto;}
+.ebh{text-align:center;margin-bottom:18px;}
+.ebh h2{font-size:24px;font-weight:900;color:var(--accent);letter-spacing:2px;}
+.ebh p{font-size:12px;color:var(--text3);margin-top:4px;}
+.ebc{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:11px;align-items:center;}
+.ebc select{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 9px;font-size:12px;}
+.ebc label{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer;}
+.ebc input[type=checkbox]{accent-color:var(--accent);}
+.eprog{height:3px;background:var(--bg3);border-radius:2px;margin-bottom:14px;overflow:hidden;}
+.eprb{height:100%;background:linear-gradient(90deg,var(--accent),var(--a3));transition:width .3s;}
+.sblk{padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;transition:background .15s;font-size:15px;line-height:1.9;}
+.sblk:hover{background:var(--bg3);}
+.smeta{font-size:10px;color:var(--text3);margin-bottom:3px;}
+
+/* ── 모달 ── */
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center;}
+#modal.show{display:flex;}
+.mbox{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:660px;width:92%;max-height:82vh;overflow-y:auto;}
+.mt{font-size:15px;font-weight:700;color:var(--accent);margin-bottom:13px;display:flex;justify-content:space-between;align-items:center;}
+.mclose{cursor:pointer;color:var(--text3);font-size:20px;line-height:1;}
+.ms{background:var(--bg3);border-radius:8px;padding:10px 13px;margin-bottom:7px;font-size:14px;line-height:1.75;border-left:3px solid var(--border);}
+.ms.pos{border-left-color:var(--pos);}
+.ms.neg{border-left-color:var(--neg);}
+.mm{font-size:11px;color:var(--text3);margin-bottom:5px;}
+
+/* ── CSV 업로드 안내 ── */
+#csv-info{background:rgba(67,233,123,.07);border:1px solid rgba(67,233,123,.25);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--a3);display:none;}
+</style>
+</head>
+<body>
+
+<!-- 전역 로딩 오버레이 -->
+<div id="loading" class="overlay hide">
+  <div class="spinner"></div>
+  <div class="ov-msg" id="load-msg">데이터 분석 중…</div>
+  <div class="ov-sub" id="load-sub"></div>
+</div>
+
+<!-- 시트 선택 화면 -->
+<div id="select-screen">
+  <div class="sel-card">
+    <h2>📚 텍스트마이닝</h2>
+    <p>분석할 텍스트를 선택하거나 CSV 파일을 업로드하세요</p>
+
+    <!-- 시트 선택 -->
+    <select id="init-sheet-sel"></select>
+    <button onclick="startSheet()">시트로 분석 시작 →</button>
+
+    <div class="or-divider">또는</div>
+
+    <!-- CSV 업로드 -->
+    <div class="csv-zone" id="drop-zone" onclick="document.getElementById('csv-file').click()">
+      <p>📂 CSV 파일을 여기에 드래그하거나 클릭하여 선택</p>
+      <p style="margin-top:6px;font-size:11px;">문장번호, 원본문장, 형태소 전처리 문장, 소설 구성 단계</p>
+    </div>
+    <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleCSVFile(this)">
+    <span class="tmpl-link" onclick="downloadTemplate()">📥 CSV 양식 다운로드</span>
+  </div>
+</div>
+
+<!-- 앱 본체 -->
+<div id="app" style="display:none;">
+  <div id="header">
+    <h1>📊 <span id="hd-label">텍스트</span> 마이닝</h1>
+    <span class="hbadge" id="hd-badge">-</span>
+    <div id="hd-right">
+      <select id="sheet-sel"></select>
+      <button class="hbtn" onclick="changeSheet()">재분석</button>
+      <button class="hbtn csv" onclick="showSelectScreen()">CSV 업로드</button>
+    </div>
+  </div>
+  <div id="tabs">
+    <button class="tb active" onclick="sw('overview')">📊 개요</button>
+    <button class="tb" onclick="sw('wordcloud')">☁️ 빈도분석</button>
+    <button class="tb" onclick="sw('association')">🔗 연관어</button>
+    <button class="tb" onclick="sw('network')">🕸️ 전체네트워크</button>
+    <button class="tb" onclick="sw('emotion')">💙 감정분석</button>
+    <button class="tb" onclick="sw('character')">🎭 인물감정</button>
+    <button class="tb" onclick="sw('tfidf')">📈 핵심어</button>
+    <button class="tb" onclick="sw('ebook')">📖 이북리더</button>
+  </div>
+  <div id="content">
+
+    <!-- ① 개요 -->
+    <div id="tab-overview" class="tp active">
+      <div id="csv-info">📂 CSV 파일로 분석 중입니다.</div>
+      <div class="card"><div class="ct">📊 전체 통계</div><div class="sg" id="stat-grid"></div></div>
+      <div class="g2">
+        <div class="card"><div class="ct">📍 구성단계별 문장 수</div><svg id="stage-bar" width="100%" height="200"></svg></div>
+        <div class="card"><div class="ct">💬 빈출 어휘 TOP 15</div><svg id="top-freq-bar" width="100%" height="200"></svg></div>
+      </div>
+      <div class="card"><div class="ct">📉 구성단계별 감정 흐름</div><svg id="emo-timeline" width="100%" height="260"></svg></div>
+    </div>
+
+    <!-- ② 빈도분석 -->
+    <div id="tab-wordcloud" class="tp">
+      <div class="card">
+        <div class="ct">☁️ 워드클라우드 <span class="hint">클릭 → 원본문장</span></div>
+        <div class="ptb">
+          <span class="ptb-lbl">품사:</span>
+          <label id="lbl-n"><input type="checkbox" id="pn" checked onchange="onPOS()"> 명사</label>
+          <label id="lbl-v"><input type="checkbox" id="pv" checked onchange="onPOS()"> 용언</label>
+          <label id="lbl-a"><input type="checkbox" id="pa" onchange="onPOS()"> 부사</label>
+          <span style="color:var(--border)">│</span>
+          <span class="ptb-lbl">표시:</span>
+          <select id="wc-top" onchange="renderWC()" class="ptb select">
+            <option value="30">30개</option><option value="50" selected>50개</option><option value="80">80개</option><option value="100">100개</option>
+          </select>
+          <select id="wc-col" onchange="renderWC()" class="ptb select">
+            <option value="accent">보라계열</option><option value="rainbow">무지개</option><option value="emotion">감정색상</option>
+          </select>
+        </div>
+        <div class="g2" style="align-items:start;">
+          <div id="wc-outer"><svg id="wc-svg"></svg></div>
+          <div id="wl-wrap">
+            <div class="wl-hd"><span>단어 체크 해제 → 구름 제외</span><button onclick="wcAll(true)">전체선택</button></div>
+            <div id="wl-items"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ct">📋 빈도 순위표 <span class="hint">클릭 → 원본문장</span></div>
+        <div id="freq-tbl" style="overflow-x:auto;max-height:360px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <!-- ③ 연관어 -->
+    <div id="tab-association" class="tp">
+      <div class="card">
+        <div class="ct">🔗 연관어 분석</div>
+        <div class="ptb">
+          <span class="ptb-lbl">품사:</span>
+          <label><input type="checkbox" id="ap-n" checked> 명사</label>
+          <label><input type="checkbox" id="ap-v" checked> 용언</label>
+          <label><input type="checkbox" id="ap-a"> 부사</label>
+        </div>
+        <div class="sbar">
+          <input id="assoc-inp" type="text" placeholder="검색할 단어 (예: 소녀)" onkeydown="if(event.key==='Enter')doAssoc()"/>
+          <button onclick="doAssoc()">분석</button>
+        </div>
+        <svg id="assoc-svg" class="net-svg"></svg>
+      </div>
+      <div class="card" id="assoc-sc" style="display:none;">
+        <div class="ct">📄 해당 단어 포함 문장</div>
+        <div id="assoc-sents"></div>
+      </div>
+    </div>
+
+    <!-- ④ 전체 네트워크 -->
+    <div id="tab-network" class="tp">
+      <div class="card">
+        <div class="ct">🕸️ 전체 연관어 네트워크
+          <span class="hint">단일 클릭 → 연결 강조 | 더블클릭 → 원본문장 팝업</span>
+        </div>
+        <div class="ptb">
+          <span class="ptb-lbl">품사:</span>
+          <label><input type="checkbox" id="np-n" checked onchange="renderNet()"> 명사</label>
+          <label><input type="checkbox" id="np-v" checked onchange="renderNet()"> 용언</label>
+          <label><input type="checkbox" id="np-a" onchange="renderNet()"> 부사</label>
+          <span style="color:var(--border)">│</span>
+          <span class="ptb-lbl">엣지:</span>
+          <select id="net-ec" onchange="renderNet()" class="ptb select">
+            <option value="50">50</option><option value="80" selected>80</option><option value="120">120</option>
+          </select>
+        </div>
+        <svg id="network-svg" class="net-svg"></svg>
+      </div>
+    </div>
+
+    <!-- ⑤ 감정분석 -->
+    <div id="tab-emotion" class="tp">
+      <div class="card"><div class="ct">💙 전체 감정 통계</div><div class="sg" id="emo-stat"></div></div>
+      <div class="g2">
+        <div class="card"><div class="ct">📉 단계별 감정 강도</div><svg id="stage-emo" width="100%" height="220"></svg></div>
+        <div class="card"><div class="ct">🥧 감정 비율</div><svg id="emo-pie" width="100%" height="220"></svg></div>
+      </div>
+      <div class="card"><div class="ct">📈 문장별 감정 흐름 <span class="hint">점 클릭 → 원본문장</span></div><svg id="sent-emo" width="100%" height="250"></svg></div>
+      <div class="card"><div class="ct">🏷️ 감정어 클라우드 <span class="hint">클릭 → 원본문장</span></div><svg id="emo-wc" width="100%" height="250"></svg></div>
+    </div>
+
+    <!-- ⑥ 인물 감정 -->
+    <div id="tab-character" class="tp">
+      <div class="card">
+        <div class="ct">🎭 인물 설정 <span class="hint">분석할 인물 이름을 직접 입력하세요</span></div>
+        <div class="char-input-area">
+          <input id="char-inp" type="text" placeholder="인물 이름 입력 (예: 소녀)" onkeydown="if(event.key==='Enter')addChar()"/>
+          <button onclick="addChar()">+ 추가</button>
+        </div>
+        <div id="char-tags"></div>
+        <button onclick="analyzeChars()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 18px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:4px;">감정 분석 실행</button>
+        <span class="char-hint"> ※ 인물 추가 후 반드시 "감정 분석 실행"을 눌러주세요</span>
+      </div>
+      <div class="card">
+        <div class="ct">🎭 인물별 감정 분석 <span class="hint">주요 문장 클릭 → 상세 보기</span></div>
+        <div id="char-cards" class="g2"></div>
+      </div>
+      <div class="card"><div class="ct">📊 인물별 감정어 비교</div><svg id="char-cmp" width="100%" height="300"></svg></div>
+    </div>
+
+    <!-- ⑦ 핵심어 -->
+    <div id="tab-tfidf" class="tp">
+      <div class="card">
+        <div class="ct">📈 구성단계별 핵심어 <span class="hint">클릭 → 원본문장</span></div>
+        <div style="background:var(--bg3);border-radius:8px;padding:11px;margin-bottom:13px;font-size:12px;color:var(--text2);line-height:1.7;">
+          💡 <b>핵심어</b>란? 이 장면에서 <b style="color:var(--accent)">특별히 많이 등장</b>하는 단어예요.<br>
+          전체 소설에서 흔한 단어보다, <b style="color:var(--a3)">이 장면에서만 집중적으로 쓰인 단어</b>가 높은 ★점수를 받아요.
+        </div>
+        <div id="tfidf-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px;"></div>
+        <div id="tfidf-body"></div>
+      </div>
+    </div>
+
+    <!-- ⑧ 이북리더 -->
+    <div id="tab-ebook" class="tp">
+      <div class="ebw">
+        <div class="ebh"><h2 id="eb-title">소나기</h2><p>문장을 클릭하면 분석 정보가 표시돼요</p></div>
+        <div class="ebc">
+          <select id="eb-stage" onchange="renderEbook()"><option value="all">전체</option></select>
+          <label><input type="checkbox" id="eb-emo" checked onchange="renderEbook()"> 감정점수</label>
+          <label><input type="checkbox" id="eb-stag" checked onchange="renderEbook()"> 구성단계</label>
+        </div>
+        <div class="eprog"><div class="eprb" id="eprb" style="width:0%"></div></div>
+        <div id="eb-text"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 모달 -->
+<div id="modal">
+  <div class="mbox">
+    <div class="mt"><span id="modal-ttl">원본 문장</span><span class="mclose" onclick="closeModal()">✕</span></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// 전역 상태
+// ═══════════════════════════════════════════════
+let DATA = null;          // 로드된 분석 데이터
+let SHEET = '';           // 현재 시트명
+let CSV_RAW = null;       // CSV 원문 (CSV 모드일 때)
+let IS_CSV = false;       // CSV 모드 여부
+let wcExcluded = new Set(); // 워드클라우드 제외 단어
+let charKeywords = [];    // 사용자 입력 인물 키워드
+let charEmoData = {};     // 인물 감정 분석 결과
+let simNet = null, simAssoc = null; // D3 시뮬레이션
+let netSelectedNode = null; // 네트워크 선택 노드
+
+const SC = {'발단':'#6c63ff','전개':'#38bdf8','위기':'#fb923c','절정':'#f472b6','결말':'#a78bfa'};
+function sc(s){return SC[s]||'#9fa8da';}
+
+// ═══════════════════════════════════════════════
+// 로딩 표시
+// ═══════════════════════════════════════════════
+function showLoading(msg='분석 중…', sub='') {
+  document.getElementById('load-msg').textContent = msg;
+  document.getElementById('load-sub').textContent = sub;
+  document.getElementById('loading').classList.remove('hide');
+}
+function hideLoading() { document.getElementById('loading').classList.add('hide'); }
+
+// ═══════════════════════════════════════════════
+// 초기화
+// ═══════════════════════════════════════════════
+window.onload = () => {
+  showLoading('시트 목록 로딩 중…');
+  google.script.run
+    .withSuccessHandler(list => {
+      hideLoading();
+      const s1 = document.getElementById('init-sheet-sel');
+      const s2 = document.getElementById('sheet-sel');
+      list.forEach(s => { s1.add(new Option(s.label,s.name)); s2.add(new Option(s.label,s.name)); });
+      if(!list.length) s1.add(new Option('(시트 없음)',''));
+    })
+    .withFailureHandler(e => { hideLoading(); alert('초기화 오류: '+e.message); })
+    .getTextSheetList();
+
+  // 드래그앤드롭
+  const dz = document.getElementById('drop-zone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); const f=e.dataTransfer.files[0]; if(f) loadCSVFile(f); });
+};
+
+// ═══════════════════════════════════════════════
+// 시트 선택 / 시작
+// ═══════════════════════════════════════════════
+function startSheet() {
+  const name = document.getElementById('init-sheet-sel').value;
+  if(!name) return alert('시트를 선택하세요');
+  document.getElementById('select-screen').classList.add('hide');
+  loadSheet(name);
+}
+function changeSheet() {
+  const name = document.getElementById('sheet-sel').value;
+  if(!name || name===SHEET) return;
+  loadSheet(name);
+}
+function showSelectScreen() {
+  document.getElementById('app').style.display='none';
+  document.getElementById('select-screen').classList.remove('hide');
+}
+
+function loadSheet(name) {
+  showLoading('스프레드시트 데이터 불러오는 중…','잠시 기다려 주세요');
+  SHEET = name; IS_CSV = false; CSV_RAW = null; wcExcluded.clear(); charKeywords=[]; charEmoData={};
+  google.script.run
+    .withSuccessHandler(data => onDataLoaded(data, false))
+    .withFailureHandler(e => { hideLoading(); showSelectScreen(); alert('오류: '+e.message); })
+    .getAllData(name);
+}
+
+// ═══════════════════════════════════════════════
+// CSV 업로드
+// ═══════════════════════════════════════════════
+function handleCSVFile(input) { if(input.files[0]) loadCSVFile(input.files[0]); }
+
+function loadCSVFile(file) {
+  const label = file.name.replace(/\.csv$/i,'');
+  document.getElementById('select-screen').classList.add('hide');
+  showLoading('CSV 파일 분석 중…', file.name);
+  const reader = new FileReader();
+  reader.onload = e => {
+    CSV_RAW = e.target.result;
+    IS_CSV = true;
+    google.script.run
+      .withSuccessHandler(data => onDataLoaded(data, true))
+      .withFailureHandler(err => { hideLoading(); showSelectScreen(); alert('CSV 오류: '+err.message); })
+      .analyzeCSV(CSV_RAW, label);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function downloadTemplate() {
+  const header = '문장번호,원본문장,형태소 전처리 문장,소설 구성 단계\n';
+  const sample = [
+    '1,소년은 개울가에서 소녀를 보았다.,소년 개울 소녀 보다,발단',
+    '2,소녀는 물장난을 하고 있었다.,소녀 물장난 있다,발단',
+    '3,어제까지 개울 기슭에서 하더니 오늘은 징검다리에 앉았다.,어제 개울 기슭 오늘 앉다,전개'
+  ].join('\n');
+  const blob = new Blob(['\uFEFF'+header+sample], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='텍스트마이닝_양식.csv'; a.click();
+}
+
+// ═══════════════════════════════════════════════
+// 데이터 로드 완료
+// ═══════════════════════════════════════════════
+function onDataLoaded(data, isCsv) {
+  DATA = data; IS_CSV = isCsv; wcExcluded.clear(); charKeywords=[]; charEmoData={};
+  hideLoading();
+  document.getElementById('app').style.display='flex';
+  document.getElementById('hd-label').textContent = data.label;
+  document.getElementById('hd-badge').textContent = data.label;
+  document.getElementById('eb-title').textContent = data.label;
+  document.getElementById('sheet-sel').value = SHEET;
+  document.getElementById('csv-info').style.display = isCsv ? 'block' : 'none';
+  initEbookStages();
+  initAll();
+}
+
+function initAll() {
+  renderStats(); renderStageBar(); renderTopFreq(); renderEmoTimeline();
+  onPOS();       renderFreqTbl();
+  renderEmoStats(); renderStageEmo(); renderEmoPie(); renderSentEmo(); renderEmoWC();
+  renderTfidfTabs();
+  renderEbook();
+  if(DATA.freqAll.length){ document.getElementById('assoc-inp').value=DATA.freqAll[0][0]; doAssoc(); }
+  renderNet();
+}
+
+// ═══════════════════════════════════════════════
+// 탭 전환
+// ═══════════════════════════════════════════════
+const TAB_NAMES=['overview','wordcloud','association','network','emotion','character','tfidf','ebook'];
+function sw(name){
+  document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('active',TAB_NAMES[i]===name));
+  document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='network') renderNet();
+}
+
+// ═══════════════════════════════════════════════
+// 품사 필터
+// ═══════════════════════════════════════════════
+function getPOS(prefix) {
+  const n=document.getElementById(prefix+'-n'), v=document.getElementById(prefix+'-v'), a=document.getElementById(prefix+'-a');
+  const r=[];
+  if(n?.checked)r.push('noun'); if(v?.checked)r.push('verb'); if(a?.checked)r.push('adv');
+  return r;
+}
+function getFilteredFreq(prefix, topN=150) {
+  const ok=getPOS(prefix); const map={};
+  DATA.sentences.forEach(s=>s.tagged.forEach(({t,pos})=>{ if(ok.includes(pos)&&!wcExcluded.has(t)) map[t]=(map[t]||0)+1; }));
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,topN);
+}
+function getFilteredCooc(prefix) {
+  const ok=getPOS(prefix); const ws=new Set();
+  DATA.sentences.forEach(s=>s.tagged.forEach(({t,pos})=>{ if(ok.includes(pos)) ws.add(t); }));
+  return DATA.coocList.filter(e=>ws.has(e.source)&&ws.has(e.target));
+}
+function onPOS(){
+  const lv=[['lbl-n','an'],['lbl-v','av'],['lbl-a','aa']];
+  const ids=[['pn','lbl-n','an'],['pv','lbl-v','av'],['pa','lbl-a','aa']];
+  ids.forEach(([id,lbl,cls])=>{ const el=document.getElementById(lbl); if(el){ el.className=document.getElementById(id)?.checked?cls:''; } });
+  buildWL(); renderWC(); renderFreqTbl();
+}
+
+// ═══════════════════════════════════════════════
+// ① 개요
+// ═══════════════════════════════════════════════
+function renderStats(){
+  const s=DATA.totalStats;
+  document.getElementById('stat-grid').innerHTML=[
+    {v:s.totalSentences,l:'전체 문장 수'},{v:s.totalTokenTypes,l:'고유 어휘 수'},{v:s.totalTokenCount,l:'전체 토큰 수'},
+    {v:s.posCount,l:'긍정 문장',c:'var(--pos)'},{v:s.negCount,l:'부정 문장',c:'var(--neg)'},{v:s.neuCount,l:'중립 문장',c:'var(--neu)'},
+  ].map(i=>`<div class="sb"><div class="v" style="${i.c?'color:'+i.c:''}">${i.v.toLocaleString()}</div><div class="l">${i.l}</div></div>`).join('');
+}
+function mkBarSVG(svgSel,stages,vals,colors,h=200,clickFn=null){
+  const svg=d3.select(svgSel); svg.selectAll('*').remove();
+  const w=svg.node().getBoundingClientRect().width||400, m={t:14,r:10,b:36,l:30};
+  const x=d3.scaleBand().domain(stages).range([m.l,w-m.r]).padding(.3);
+  const y=d3.scaleLinear().domain([0,d3.max(vals)]).nice().range([h-m.b,m.t]);
+  svg.attr('height',h);
+  svg.append('g').attr('transform',`translate(0,${h-m.b})`).call(d3.axisBottom(x)).selectAll('text').style('fill','var(--text3)').style('font-size','12px');
+  svg.append('g').attr('transform',`translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4)).selectAll('text').style('fill','var(--text3)').style('font-size','10px');
+  svg.selectAll('.domain,.tick line').style('stroke','var(--border)');
+  svg.selectAll('rect').data(stages).enter().append('rect')
+    .attr('x',d=>x(d)).attr('width',x.bandwidth()).attr('y',(_,i)=>y(vals[i])).attr('height',(_,i)=>y(0)-y(vals[i]))
+    .attr('fill',(_,i)=>typeof colors==='function'?colors(i):colors[i]||colors).attr('rx',4).attr('cursor',clickFn?'pointer':'default')
+    .on('click',clickFn||(()=>{}));
+  svg.selectAll('text.lbl').data(stages).enter().append('text')
+    .attr('x',d=>x(d)+x.bandwidth()/2).attr('y',(_,i)=>y(vals[i])-5)
+    .attr('text-anchor','middle').attr('fill','var(--text2)').style('font-size','12px').text((_,i)=>vals[i]);
+}
+function renderStageBar(){
+  mkBarSVG('#stage-bar',DATA.stageOrder,DATA.stageOrder.map(s=>DATA.stageEmo[s].count),DATA.stageOrder.map(s=>sc(s)));
+}
+function renderTopFreq(){
+  const top=DATA.freqAll.slice(0,15), ws=top.map(d=>d[0]), vs=top.map(d=>d[1]);
+  const svg=d3.select('#top-freq-bar'); svg.selectAll('*').remove();
+  const w=svg.node().getBoundingClientRect().width||400, h=200, m={t:10,r:10,b:60,l:28};
+  const x=d3.scaleBand().domain(ws).range([m.l,w-m.r]).padding(.3);
+  const y=d3.scaleLinear().domain([0,d3.max(vs)]).nice().range([h-m.b,m.t]);
+  svg.attr('height',h);
+  svg.append('g').attr('transform',`translate(0,${h-m.b})`).call(d3.axisBottom(x))
+    .selectAll('text').style('fill','var(--text2)').style('font-size','11px').attr('transform','rotate(-35)').attr('text-anchor','end');
+  svg.append('g').attr('transform',`translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4)).selectAll('text').style('fill','var(--text3)').style('font-size','10px');
+  svg.selectAll('.domain,.tick line').style('stroke','var(--border)');
+  const col=d3.scaleSequential(d3.interpolatePlasma).domain([0,top.length]);
+  svg.selectAll('rect').data(top).enter().append('rect')
+    .attr('x',(_,i)=>x(ws[i])).attr('width',x.bandwidth()).attr('y',(_,i)=>y(vs[i])).attr('height',(_,i)=>y(0)-y(vs[i]))
+    .attr('fill',(_,i)=>col(i)).attr('rx',3).attr('cursor','pointer').on('click',(_,d)=>wSent(d[0]));
+}
+function renderEmoTimeline(){
+  const svg=d3.select('#emo-timeline'); svg.selectAll('*').remove();
+  const w=svg.node().getBoundingClientRect().width||700, h=260, m={t:24,r:18,b:44,l:44};
+  const stages=DATA.stageOrder, data=stages.map(st=>({s:st,v:DATA.stageEmo[st].avgScore}));
+  const x=d3.scalePoint().domain(stages).range([m.l,w-m.r]).padding(.5);
+  const yR=Math.max(d3.max(data,d=>Math.abs(d.v)),.3)*1.4;
+  const y=d3.scaleLinear().domain([-yR,yR]).range([h-m.b,m.t]);
+  stages.forEach(st=>{ svg.append('rect').attr('x',x(st)-28).attr('y',m.t).attr('width',56).attr('height',h-m.t-m.b).attr('fill',sc(st)).attr('opacity',.06).attr('rx',4); });
+  svg.append('line').attr('x1',m.l).attr('x2',w-m.r).attr('y1',y(0)).attr('y2',y(0)).attr('stroke','var(--border)').attr('stroke-dasharray','5,3');
+  const area=d3.area().x(d=>x(d.s)).y0(y(0)).y1(d=>y(d.v)).curve(d3.curveCatmullRom);
+  svg.append('path').datum(data).attr('fill','rgba(108,99,255,.12)').attr('d',area);
+  const line=d3.line().x(d=>x(d.s)).y(d=>y(d.v)).curve(d3.curveCatmullRom);
+  svg.append('path').datum(data).attr('fill','none').attr('stroke','var(--accent)').attr('stroke-width',2.5).attr('d',line);
+  svg.selectAll('.dot').data(data).enter().append('circle').attr('cx',d=>x(d.s)).attr('cy',d=>y(d.v)).attr('r',7)
+    .attr('fill',d=>d.v>=0?'var(--pos)':'var(--neg)').attr('stroke','var(--bg2)').attr('stroke-width',2.5);
+  svg.selectAll('.dlbl').data(data).enter().append('text').attr('x',d=>x(d.s)).attr('y',d=>y(d.v)-(d.v>=0?13:-2))
+    .attr('text-anchor','middle').attr('fill','var(--text2)').style('font-size','11px').text(d=>d.v.toFixed(2));
+  svg.append('g').attr('transform',`translate(0,${h-m.b})`).call(d3.axisBottom(x)).selectAll('text').style('fill','var(--text2)').style('font-size','13px');
+  svg.append('g').attr('transform',`translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5)).selectAll('text').style('fill','var(--text3)').style('font-size','10px');
+  svg.selectAll('.domain,.tick line').style('stroke','var(--border)');
+}
+
+// ═══════════════════════════════════════════════
+// ② 빈도분석 / 워드클라우드
+// ═══════════════════════════════════════════════
+function buildWL(){
+  const freq=getFilteredFreq('p',200), maxF=freq[0]?.[1]||1;
+  document.getElementById('wl-items').innerHTML=freq.slice(0,120).map(([w,f])=>
+    `<div class="wl-item">
+      <input type="checkbox" ${wcExcluded.has(w)?'':'checked'} onchange="toggleW('${w}',this.checked)">
+      <span class="wl-w" onclick="wSent('${w}')">${w}</span>
+      <div class="wl-bar" style="width:${Math.round(f/maxF*80)}px;max-width:80px;"></div>
+      <span class="wl-f">${f}</span>
+    </div>`
+  ).join('');
+}
+function toggleW(w,c){ if(c) wcExcluded.delete(w); else wcExcluded.add(w); renderWC(); }
+function wcAll(c){ wcExcluded.clear(); document.querySelectorAll('#wl-items input').forEach(cb=>cb.checked=c); renderWC(); }
+
+function renderWC(){
+  const topN=parseInt(document.getElementById('wc-top').value);
+  const mode=document.getElementById('wc-col').value;
+  const freq=getFilteredFreq('p',300);
+  const top=freq.filter(([w])=>!wcExcluded.has(w)).slice(0,topN);
+  if(!top.length)return;
+  const maxF=top[0][1], minF=top[top.length-1][1];
+  const svg=d3.select('#wc-svg'); svg.selectAll('*').remove();
+  const W=document.getElementById('wc-outer').clientWidth||500, H=400;
+  svg.attr('viewBox',`0 0 ${W} ${H}`);
+  const ss=d3.scaleSqrt().domain([minF,maxF]).range([11,52]);
+  const pal=['#6c63ff','#9fa8da','#38bdf8','#a78bfa','#c4b5fd','#f472b6'];
+  function getC(w,i,n){
+    if(mode==='rainbow') return `hsl(${i/n*340},70%,65%)`;
+    if(mode==='emotion'){
+      const ew=DATA.sentences.find(s=>s.emoWords.find(([x])=>x===w));
+      if(ew){const e=ew.emoWords.find(([x])=>x===w);if(e)return e[1]>0?'var(--pos)':'var(--neg)';}
+      return '#9fa8da';
+    }
+    return pal[i%pal.length];
+  }
+  const placed=[];
+  function ov(nx,ny,nr){return placed.some(p=>{const dx=nx-p.x,dy=ny-p.y;return Math.sqrt(dx*dx+dy*dy)<nr+p.r+7;});}
+  top.forEach(([w,f],idx)=>{
+    const fs=ss(f), r=Math.max(w.length*fs*.58,fs)/2;
+    let ok=false;
+    for(let st=0;st<600;st++){
+      const a=st*.47, rad=st*1.02;
+      const nx=W/2+rad*Math.cos(a), ny=H/2+rad*Math.sin(a)*.68;
+      if(nx-r<4||nx+r>W-4||ny-r<6||ny+r>H-6)continue;
+      if(!ov(nx,ny,r)){
+        placed.push({x:nx,y:ny,r});
+        svg.append('text').attr('class','ww').attr('x',nx).attr('y',ny)
+          .attr('text-anchor','middle').attr('dominant-baseline','middle')
+          .attr('font-size',fs).attr('font-weight',idx<3?'900':'700')
+          .attr('fill',getC(w,idx,top.length)).text(w)
+          .on('click',()=>wSent(w)).append('title').text(`${w}: ${f}회`);
+        ok=true; break;
+      }
+    }
+    if(!ok){
+      const nx=W*(.1+Math.random()*.8), ny=H*(.1+Math.random()*.8);
+      placed.push({x:nx,y:ny,r:r*.7});
+      svg.append('text').attr('class','ww').attr('x',nx).attr('y',ny)
+        .attr('text-anchor','middle').attr('dominant-baseline','middle')
+        .attr('font-size',fs*.75).attr('fill',getC(w,idx,top.length)).text(w).on('click',()=>wSent(w));
+    }
+  });
+}
+
+function renderFreqTbl(){
+  const freq=getFilteredFreq('p',50), maxF=freq[0]?.[1]||1;
+  document.getElementById('freq-tbl').innerHTML=
+    `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr>${['순위','어휘','빈도','비율'].map(h=>`<th style="background:var(--bg3);padding:7px 11px;text-align:left;color:var(--text3);font-size:12px;border-bottom:1px solid var(--border)">${h}</th>`).join('')}</tr></thead>
+      <tbody>${freq.map(([w,f],i)=>`<tr>
+        <td style="padding:6px 11px;border-bottom:1px solid var(--border)"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:22px;">${i+1}</span></td>
+        <td style="padding:6px 11px;border-bottom:1px solid var(--border);cursor:pointer;color:var(--accent);font-weight:700;" onclick="wSent('${w}')">${w}</td>
+        <td style="padding:6px 11px;border-bottom:1px solid var(--border);">${f}</td>
+        <td style="padding:6px 11px;border-bottom:1px solid var(--border);"><div style="height:8px;background:var(--accent);border-radius:4px;width:${Math.round(f/maxF*100)}%;opacity:.6;"></div></td>
+      </tr>`).join('')}</tbody></table>`;
+}
+
+// ═══════════════════════════════════════════════
+// ③ 연관어 분석
+// ═══════════════════════════════════════════════
+function doAssoc(){
+  const kw=document.getElementById('assoc-inp').value.trim();
+  if(!kw)return;
+  showLoading(`"${kw}" 연관어 분석 중…`,'');
+  if(IS_CSV){
+    // CSV 모드: 클라이언트 DATA에서 직접 계산
+    const res=calcAssocLocal(kw);
+    hideLoading();
+    renderAssocGraph(res);
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(res=>{ hideLoading(); renderAssocGraph(res); })
+    .withFailureHandler(e=>{ hideLoading(); alert('오류:'+e.message); })
+    .getAssociation(kw, SHEET);
+}
+
+function calcAssocLocal(kw){
+  const coocMap={}, kwSents=[];
+  DATA.sentences.forEach(s=>{
+    if(!s.tokens.includes(kw))return;
+    kwSents.push({no:s.no,original:s.original,stage:s.stage});
+    s.tokens.forEach(t=>{ if(t!==kw) coocMap[t]=(coocMap[t]||0)+1; });
+  });
+  return { keyword:kw, associations:Object.entries(coocMap).sort((a,b)=>b[1]-a[1]).slice(0,30).map(([word,weight])=>({word,weight})), sentences:kwSents };
+}
+
+function renderAssocGraph(result){
+  if(simAssoc){simAssoc.stop();simAssoc=null;}
+  const svg=d3.select('#assoc-svg'); svg.selectAll('*').remove();
+  const W=svg.node().getBoundingClientRect().width||700, H=480;
+  svg.attr('viewBox',`0 0 ${W} ${H}`).attr('height',H);
+  const posMap={}; DATA.sentences.forEach(s=>s.tagged.forEach(({t,pos})=>{posMap[t]=pos;}));
+  const okP=getPOS('ap');
+  const assocs=result.associations.filter(a=>okP.includes(posMap[a.word]||'noun'));
+  if(!assocs.length){
+    svg.append('text').attr('x',W/2).attr('y',H/2).attr('text-anchor','middle').attr('fill','var(--text3)').attr('font-size',14).text(`"${result.keyword}" 결과 없음`);
+    document.getElementById('assoc-sc').style.display='none'; return;
+  }
+  const top=assocs.slice(0,20), maxW=top[0].weight;
+  const nodes=[{id:result.keyword,center:true,w:maxW*2},...top.map(a=>({id:a.word,center:false,w:a.weight}))];
+  const links=top.map(a=>({source:result.keyword,target:a.word,w:a.weight}));
+  const ss=d3.scaleSqrt().domain([1,maxW]).range([10,26]);
+  const cs=d3.scaleSequential(d3.interpolateCool).domain([0,top.length]);
+  const sim=d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d.id).distance(d=>72+d.w*4).strength(.85))
+    .force('charge',d3.forceManyBody().strength(-240))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('collision',d3.forceCollide().radius(d=>ss(d.w)+20));
+  simAssoc=sim;
+  const lG=svg.append('g').selectAll('line').data(links).enter().append('line')
+    .attr('stroke','var(--border)').attr('stroke-width',d=>Math.sqrt(d.w)*1.8).attr('opacity',.7);
+  const nG=svg.append('g').selectAll('circle').data(nodes).enter().append('circle')
+    .attr('r',d=>d.center?30:ss(d.w)).attr('fill',d=>d.center?'var(--accent)':cs(top.indexOf(top.find(a=>a.word===d.id))))
+    .attr('stroke','var(--bg2)').attr('stroke-width',2).attr('cursor','pointer')
+    .on('click',(_,d)=>wSent(d.id))
+    .call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+  const tG=svg.append('g').selectAll('text').data(nodes).enter().append('text')
+    .attr('text-anchor','middle').attr('dominant-baseline','middle')
+    .attr('fill',d=>d.center?'#fff':'var(--text)').attr('font-size',d=>d.center?14:11)
+    .attr('font-weight','700').attr('pointer-events','none').text(d=>d.id);
+  const wG=svg.append('g').selectAll('text').data(links).enter().append('text')
+    .attr('fill','var(--text3)').attr('font-size',9).attr('pointer-events','none').text(d=>d.w);
+  sim.on('tick',()=>{
+    lG.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    nG.attr('cx',d=>d.x).attr('cy',d=>d.y); tG.attr('x',d=>d.x).attr('y',d=>d.y);
+    wG.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2-5);
+  });
+  const card=document.getElementById('assoc-sc');
+  if(result.sentences.length){
+    card.style.display='block';
+    document.getElementById('assoc-sents').innerHTML=result.sentences.map(s=>
+      `<div class="ms" style="cursor:default;"><div class="mm"><span class="stage-tag s-${s.stage}">${s.stage}</span> 문장 ${s.no}</div>${s.original}</div>`
+    ).join('');
+  } else { card.style.display='none'; }
+}
+
+// ═══════════════════════════════════════════════
+// ④ 전체 네트워크 (단클릭=강조, 더블클릭=팝업)
+// ═══════════════════════════════════════════════
+function renderNet(){
+  if(simNet){simNet.stop();simNet=null;} netSelectedNode=null;
+  const ec=parseInt(document.getElementById('net-ec').value);
+  const svg=d3.select('#network-svg'); svg.selectAll('*').remove();
+  const W=svg.node().getBoundingClientRect().width||700, H=480;
+  svg.attr('viewBox',`0 0 ${W} ${H}`).attr('height',H);
+  const filtered=getFilteredCooc('np').slice(0,ec);
+  if(!filtered.length){ svg.append('text').attr('x',W/2).attr('y',H/2).attr('text-anchor','middle').attr('fill','var(--text3)').attr('font-size',14).text('데이터 없음'); return; }
+  const ns=new Set(); filtered.forEach(e=>{ns.add(e.source);ns.add(e.target);});
+  const fMap={}; DATA.sentences.forEach(s=>s.tokens.forEach(t=>{fMap[t]=(fMap[t]||0)+1;}));
+  const nodes=[...ns].map(id=>({id,freq:fMap[id]||1}));
+  const maxF=Math.max(...nodes.map(n=>n.freq),1);
+  const ss=d3.scaleSqrt().domain([1,maxF]).range([6,26]);
+  const cs=d3.scaleOrdinal(d3.schemeTableau10);
+  const maxW=filtered[0]?.weight||1;
+  const links=filtered.map(e=>({source:e.source,target:e.target,w:e.weight}));
+
+  const sim=d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d.id).distance(d=>48+90/d.w).strength(.6))
+    .force('charge',d3.forceManyBody().strength(-115))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('collision',d3.forceCollide().radius(d=>ss(d.freq)+5));
+  simNet=sim;
+
+  const lG=svg.append('g').selectAll('line').data(links).enter().append('line').attr('class','net-link')
+    .attr('stroke',d=>`rgba(108,99,255,${.12+d.w/maxW*.55})`).attr('stroke-width',d=>Math.sqrt(d.w));
+  const nG=svg.append('g').selectAll('circle').data(nodes).enter().append('circle').attr('class','net-node')
+    .attr('r',d=>ss(d.freq)).attr('fill',(_,i)=>cs(i)).attr('stroke','var(--bg2)').attr('stroke-width',1.5).attr('cursor','pointer');
+  const tG=svg.append('g').selectAll('text').data(nodes).enter().append('text').attr('class','net-lbl')
+    .attr('text-anchor','middle').attr('dominant-baseline','middle')
+    .attr('fill','var(--text)').attr('font-size',d=>Math.max(9,ss(d.freq)*.65))
+    .attr('font-weight','700').attr('pointer-events','none').text(d=>d.id);
+
+  // 클릭 = 강조, 더블클릭 = 팝업
+  let clickTimer=null;
+  nG.on('click',function(event,d){
+      clearTimeout(clickTimer);
+      clickTimer=setTimeout(()=>highlightNode(d.id, nG, lG, tG, links),250);
+    })
+    .on('dblclick',function(event,d){
+      clearTimeout(clickTimer);
+      event.stopPropagation();
+      wSent(d.id);
+    })
+    .call(d3.drag()
+      .on('start',(e,d)=>{clearTimeout(clickTimer);if(!e.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
+      .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+
+  // 빈 곳 클릭 → 강조 해제
+  svg.on('click',()=>resetHighlight(nG,lG,tG));
+
+  sim.on('tick',()=>{
+    lG.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    nG.attr('cx',d=>d.x).attr('cy',d=>d.y); tG.attr('x',d=>d.x).attr('y',d=>d.y);
+  });
+}
+
+function highlightNode(id, nG, lG, tG, links){
+  netSelectedNode=id;
+  const connected=new Set([id]);
+  links.forEach(l=>{ const s=typeof l.source==='object'?l.source.id:l.source, t=typeof l.target==='object'?l.target.id:l.target; if(s===id)connected.add(t); if(t===id)connected.add(s); });
+  nG.attr('opacity',d=>connected.has(d.id)?1:.12).attr('stroke',d=>d.id===id?'#fff':'var(--bg2)').attr('stroke-width',d=>d.id===id?3:1.5);
+  lG.attr('opacity',l=>{ const s=typeof l.source==='object'?l.source.id:l.source, t=typeof l.target==='object'?l.target.id:l.target; return s===id||t===id?.85:.06; }).attr('stroke-width',l=>{ const s=typeof l.source==='object'?l.source.id:l.source, t=typeof l.target==='object'?l.target.id:l.target; return s===id||t===id?Math.sqrt(l.w)*2.5:1; });
+  tG.attr('opacity',d=>connected.has(d.id)?1:.12).attr('fill',d=>d.id===id?'var(--accent)':'var(--text)').attr('font-size',d=>d.id===id?14:undefined);
+}
+function resetHighlight(nG,lG,tG){
+  netSelectedNode=null;
+  nG.attr('opacity',1).attr('stroke','var(--bg2)').attr('stroke-width',1.5);
+  lG.attr('opacity',1).attr('stroke-width',d=>Math.sqrt(d.w));
+  tG.attr('opacity',1).attr('fill','var(--text)').attr('font-size',undefined);
+}
+
+// ═══════════════════════════════════════════════
+// ⑤ 감정분석
+// ═══════════════════════════════════════════════
+function renderEmoStats(){
+  const s=DATA.totalStats, t=s.posCount+s.negCount+s.neuCount||1;
+  document.getElementById('emo-stat').innerHTML=[
+    {v:s.posCount,l:'긍정 문장',c:'var(--pos)'},{v:s.negCount,l:'부정 문장',c:'var(--neg)'},{v:s.neuCount,l:'중립 문장',c:'var(--neu)'},
+    {v:(s.posCount/t*100).toFixed(1)+'%',l:'긍정 비율',c:'var(--pos)'},{v:(s.negCount/t*100).toFixed(1)+'%',l:'부정 비율',c:'var(--neg)'},
+  ].map(i=>`<div class="sb"><div class="v" style="color:${i.c}">${i.v}</div><div class="l">${i.l}</div></div>`).join('');
+}
+function renderStageEmo(){
+  const svg=d3.select('#stage-emo'); svg.selectAll('*').remove();
+  const w=svg.node().getBoundingClientRect().width||400, h=220, m={t:16,r:12,b:36,l:40};
+  const stages=DATA.stageOrder, posV=stages.map(s=>DATA.stageEmo[s].posSum), negV=stages.map(s=>DATA.stageEmo[s].negSum);
+  const yE=[Math.min(...negV)*1.25,Math.max(...posV)*1.25];
+  const x=d3.scaleBand().domain(stages).range([m.l,w-m.r]).padding(.3);
+  const y=d3.scaleLinear().domain(yE).nice().range([h-m.b,m.t]);
+  svg.attr('height',h);
+  svg.append('line').attr('x1',m.l).attr('x2',w-m.r).attr('y1',y(0)).attr('y2',y(0)).attr('stroke','var(--border)').attr('stroke-width',1.5);
+  svg.selectAll('.pb').data(stages).enter().append('rect').attr('x',d=>x(d)).attr('width',x.bandwidth()/2).attr('y',d=>y(DATA.stageEmo[d].posSum)).attr('height',d=>y(0)-y(DATA.stageEmo[d].posSum)).attr('fill','var(--pos)').attr('rx',3).attr('opacity',.85);
+  svg.selectAll('.nb').data(stages).enter().append('rect').attr('x',d=>x(d)+x.bandwidth()/2).attr('width',x.bandwidth()/2).attr('y',d=>y(0)).attr('height',d=>y(DATA.stageEmo[d].negSum)-y(0)).attr('fill','var(--neg)').attr('rx',3).attr('opacity',.85);
+  svg.append('g').attr('transform',`translate(0,${h-m.b})`).call(d3.axisBottom(x)).selectAll('text').style('fill','var(--text2)').style('font-size','12px');
+  svg.append('g').attr('transform',`translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5)).selectAll('text').style('fill','var(--text3)').style('font-size','10px');
+  svg.selectAll('.domain,.tick line').style('stroke','var(--border)');
+}
+function renderEmoPie(){
+  const svg=d3.select('#emo-pie'); svg.selectAll('*').remove();
+  const W=svg.node().getBoundingClientRect().width||220, H=220, r=Math.min(W,H)/2-18;
+  svg.attr('height',H);
+  const s=DATA.totalStats, data=[{l:'긍정',v:s.posCount,c:'var(--pos)'},{l:'부정',v:s.negCount,c:'var(--neg)'},{l:'중립',v:s.neuCount,c:'var(--neu)'}];
+  const pie=d3.pie().value(d=>d.v).sort(null), arc=d3.arc().innerRadius(r*.44).outerRadius(r);
+  const g=svg.append('g').attr('transform',`translate(${W/2},${H/2})`);
+  g.selectAll('path').data(pie(data)).enter().append('path').attr('d',arc).attr('fill',d=>d.data.c).attr('stroke','var(--bg2)').attr('stroke-width',2);
+  g.selectAll('text').data(pie(data)).enter().append('text').attr('transform',d=>`translate(${arc.centroid(d)})`).attr('text-anchor','middle').attr('dominant-baseline','middle').attr('fill','var(--bg)').attr('font-size',10).attr('font-weight','700').text(d=>d.data.l+' '+d.data.v);
+  g.append('text').attr('text-anchor','middle').attr('dy','-.2em').attr('fill','var(--text)').attr('font-size',20).attr('font-weight','900').text(s.totalSentences);
+  g.append('text').attr('text-anchor','middle').attr('dy','1.2em').attr('fill','var(--text3)').attr('font-size',10).text('문장');
+}
+function renderSentEmo(){
+  const svg=d3.select('#sent-emo'); svg.selectAll('*').remove();
+  const W=svg.node().getBoundingClientRect().width||700, H=250, m={t:18,r:14,b:30,l:40};
+  const sents=DATA.sentences, x=d3.scaleLinear().domain([1,sents.length]).range([m.l,W-m.r]);
+  const scores=sents.map(s=>s.emoScore), yM=Math.max(Math.abs(d3.min(scores)),d3.max(scores),1);
+  const y=d3.scaleLinear().domain([-yM*1.35,yM*1.35]).range([H-m.b,m.t]);
+  svg.attr('height',H);
+  DATA.stageOrder.forEach(st=>{
+    const ss=sents.filter(s=>s.stage===st); if(!ss.length)return;
+    const x0=x(ss[0].no), x1=x(ss[ss.length-1].no);
+    svg.append('rect').attr('x',x0).attr('y',m.t).attr('width',x1-x0).attr('height',H-m.t-m.b).attr('fill',sc(st)).attr('opacity',.07);
+    svg.append('text').attr('x',(x0+x1)/2).attr('y',m.t+10).attr('text-anchor','middle').attr('fill',sc(st)).attr('font-size',9).attr('opacity',.8).text(st);
+  });
+  svg.append('line').attr('x1',m.l).attr('x2',W-m.r).attr('y1',y(0)).attr('y2',y(0)).attr('stroke','var(--border)').attr('stroke-dasharray','5,3');
+  const area=d3.area().x(d=>x(d.no)).y0(y(0)).y1(d=>y(d.emoScore)).curve(d3.curveBumpX);
+  svg.append('path').datum(sents).attr('d',area).attr('fill','rgba(108,99,255,.1)');
+  const line=d3.line().x(d=>x(d.no)).y(d=>y(d.emoScore)).curve(d3.curveBumpX);
+  svg.append('path').datum(sents).attr('fill','none').attr('stroke','var(--accent)').attr('stroke-width',1.5).attr('d',line);
+  svg.selectAll('.ed').data(sents.filter(s=>s.emoScore!==0)).enter().append('circle')
+    .attr('cx',d=>x(d.no)).attr('cy',d=>y(d.emoScore)).attr('r',3.5)
+    .attr('fill',d=>d.emoScore>0?'var(--pos)':'var(--neg)').attr('cursor','pointer')
+    .on('click',(_,d)=>showSents([d],`문장 ${d.no}`));
+  svg.append('g').attr('transform',`translate(0,${H-m.b})`).call(d3.axisBottom(x).ticks(8)).selectAll('text').style('fill','var(--text3)').style('font-size','10px');
+  svg.append('g').attr('transform',`translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5)).selectAll('text').style('fill','var(--text3)').style('font-size','10px');
+  svg.selectAll('.domain,.tick line').style('stroke','var(--border)');
+}
+function renderEmoWC(){
+  const svg=d3.select('#emo-wc'); svg.selectAll('*').remove();
+  const W=svg.node().getBoundingClientRect().width||700, H=250;
+  svg.attr('viewBox',`0 0 ${W} ${H}`);
+  const em={};
+  DATA.sentences.forEach(s=>s.emoWords.forEach(([w,e])=>{if(!em[w])em[w]={c:0,sc:e};em[w].c++;}));
+  const list=Object.entries(em).sort((a,b)=>b[1].c-a[1].c).slice(0,50);
+  if(!list.length){svg.append('text').attr('x',W/2).attr('y',H/2).attr('fill','var(--text3)').attr('text-anchor','middle').text('감정어 없음');return;}
+  const maxC=list[0][1].c, ss=d3.scaleSqrt().domain([1,maxC]).range([11,44]);
+  const placed=[];
+  function ov(nx,ny,nr){return placed.some(p=>{const dx=nx-p.x,dy=ny-p.y;return Math.sqrt(dx*dx+dy*dy)<nr+p.r+7;});}
+  list.forEach(([w,{c,sc:score}])=>{
+    const fs=ss(c), r=Math.max(w.length*fs*.55,fs)/2; let ok=false;
+    for(let st=0;st<400;st++){const a=st*.52,rad=st*1.05;const nx=W/2+rad*Math.cos(a),ny=H/2+rad*Math.sin(a)*.7;if(nx-r<4||nx+r>W-4||ny-r<4||ny+r>H-4)continue;if(!ov(nx,ny,r)){placed.push({x:nx,y:ny,r});svg.append('text').attr('class','ww').attr('x',nx).attr('y',ny).attr('text-anchor','middle').attr('dominant-baseline','middle').attr('font-size',fs).attr('font-weight','700').attr('fill',score>0?'var(--pos)':score<0?'var(--neg)':'var(--neu)').text(w).on('click',()=>wSent(w)).append('title').text(`${w}: ${c}회 (${score>0?'+':''}${score})`);ok=true;break;}}
+    if(!ok){const nx=W*(.1+Math.random()*.8),ny=H*(.1+Math.random()*.8);placed.push({x:nx,y:ny,r:r*.7});svg.append('text').attr('class','ww').attr('x',nx).attr('y',ny).attr('text-anchor','middle').attr('dominant-baseline','middle').attr('font-size',fs*.7).attr('fill',score>0?'var(--pos)':score<0?'var(--neg)':'var(--neu)').text(w).on('click',()=>wSent(w));}
+  });
+}
+
+// ═══════════════════════════════════════════════
+// ⑥ 인물 감정 — 사용자 직접 입력
+// ═══════════════════════════════════════════════
+function addChar(){
+  const inp=document.getElementById('char-inp'), v=inp.value.trim();
+  if(!v||charKeywords.includes(v))return;
+  charKeywords.push(v);
+  inp.value='';
+  renderCharTags();
+}
+function removeChar(w){ charKeywords=charKeywords.filter(k=>k!==w); renderCharTags(); }
+function renderCharTags(){
+  document.getElementById('char-tags').innerHTML=charKeywords.map(w=>
+    `<span class="char-tag">${w}<button onclick="removeChar('${w}')">×</button></span>`
+  ).join('');
+}
+
+function analyzeChars(){
+  if(!charKeywords.length)return alert('인물 이름을 1명 이상 입력하세요');
+  showLoading(`인물 감정 분석 중…`, charKeywords.join(', '));
+  if(IS_CSV){
+    // CSV 모드: 로컬 계산
+    const res={};
+    charKeywords.forEach(ch=>{
+      const sents=DATA.sentences.filter(s=>s.tokens.includes(ch));
+      const allEmo=[]; sents.forEach(s=>allEmo.push(...s.emoWords));
+      const pW={},nW={};
+      allEmo.forEach(([w,sc])=>{ if(sc>0)pW[w]=(pW[w]||0)+sc; else if(sc<0)nW[w]=(nW[w]||0)+Math.abs(sc); });
+      const top5=sents.filter(s=>s.emoScore!==0).sort((a,b)=>Math.abs(b.emoScore)-Math.abs(a.emoScore)).slice(0,5)
+        .map(s=>({no:s.no,original:s.original,stage:s.stage,emoScore:s.emoScore,emoWords:s.emoWords}));
+      res[ch]={sentenceCount:sents.length,posSum:allEmo.filter(([,e])=>e>0).reduce((s,[,e])=>s+e,0),negSum:allEmo.filter(([,e])=>e<0).reduce((s,[,e])=>s+e,0),posWords:Object.entries(pW).sort((a,b)=>b[1]-a[1]).slice(0,15),negWords:Object.entries(nW).sort((a,b)=>b[1]-a[1]).slice(0,15),topSentences:top5};
+    });
+    charEmoData=res; hideLoading(); renderCharCards(); renderCharCmp();
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(res=>{ charEmoData=res; hideLoading(); renderCharCards(); renderCharCmp(); })
+    .withFailureHandler(e=>{ hideLoading(); alert('오류:'+e.message); })
+    .getCharEmo(charKeywords, SHEET, null);
+}
+
+function renderCharCards(){
+  document.getElementById('char-cards').innerHTML=charKeywords.map(ch=>{
+    const d=charEmoData[ch]; if(!d)return `<div class="char-card"><div class="char-name">${ch}</div><p style="color:var(--text3);font-size:13px;">등장 문장 없음</p></div>`;
+    const total=Math.abs(d.posSum)+Math.abs(d.negSum)||1;
+    const pW=(d.posSum/total*100).toFixed(0), nW=(Math.abs(d.negSum)/total*100).toFixed(0);
+    const tpPos=(d.posWords||[]).slice(0,8).map(([w,s])=>`<span class="emo-b ep">${w}(+${s})</span>`).join('');
+    const tpNeg=(d.negWords||[]).slice(0,8).map(([w,s])=>`<span class="emo-b en">${w}(-${s})</span>`).join('');
+    const sentBtns=(d.topSentences||[]).map(s=>`<button class="csb" onclick='showSents([${JSON.stringify(s)}],"${ch} 관련 문장")'><div class="csm"><span class="stage-tag s-${s.stage}">${s.stage}</span><span class="etag" style="background:${s.emoScore>0?'rgba(67,233,123,.15)':'rgba(255,101,132,.15)'};color:${s.emoScore>0?'var(--pos)':'var(--neg)'}">${s.emoScore>0?'+':''}${s.emoScore}</span></div>${s.original.length>60?s.original.slice(0,60)+'…':s.original}</button>`).join('');
+    return `<div class="char-card">
+      <div class="char-name">${ch}</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px">등장 ${d.sentenceCount}개 문장</div>
+      <div class="emom"><div class="pb" style="width:${pW}%"></div><div class="nb" style="width:${nW}%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:10px"><span style="color:var(--pos)">긍정 +${d.posSum}</span><span style="color:var(--neg)">부정 ${d.negSum}</span></div>
+      <div style="font-size:11px;color:var(--pos);font-weight:700;margin-bottom:4px">긍정 감정어</div>
+      <div style="margin-bottom:10px">${tpPos||'<span style="color:var(--text3);font-size:11px">없음</span>'}</div>
+      <div style="font-size:11px;color:var(--neg);font-weight:700;margin-bottom:4px">부정 감정어</div>
+      <div style="margin-bottom:12px">${tpNeg||'<span style="color:var(--text3);font-size:11px">없음</span>'}</div>
+      <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:5px">주요 문장 (클릭하여 보기)</div>
+      ${sentBtns||'<span style="color:var(--text3);font-size:11px">없음</span>'}
+    </div>`;
+  }).join('');
+}
+function renderCharCmp(){
+  const chars=charKeywords.filter(ch=>charEmoData[ch]); if(chars.length<1)return;
+  const svg=d3.select('#char-cmp'); svg.selectAll('*').remove();
+  const W=svg.node().getBoundingClientRect().width||700, H=300, m={t:16,r:16,b:60,l:48};
+  const allW=new Set();
+  chars.forEach(ch=>{ (charEmoData[ch]?.posWords||[]).slice(0,6).forEach(([w])=>allW.add(w)); (charEmoData[ch]?.negWords||[]).slice(0,6).forEach(([w])=>allW.add(w)); });
+  const words=[...allW].slice(0,14);
+  const getS=(ch,w)=>{ const p=(charEmoData[ch]?.posWords||[]).find(([x])=>x===w); const n=(charEmoData[ch]?.negWords||[]).find(([x])=>x===w); return p?p[1]:n?-n[1]:0; };
+  const data=words.map(w=>({word:w,...Object.fromEntries(chars.map(ch=>[ch,getS(ch,w)]))}));
+  const x0=d3.scaleBand().domain(words).range([m.l,W-m.r]).padding(.2);
+  const x1=d3.scaleBand().domain(chars).range([0,x0.bandwidth()]).padding(.08);
+  const yVals=data.flatMap(d=>chars.map(ch=>d[ch]));
+  const y=d3.scaleLinear().domain([d3.min(yVals)*1.3,d3.max(yVals)*1.3]).nice().range([H-m.b,m.t]);
+  svg.attr('height',H);
+  svg.append('line').attr('x1',m.l).attr('x2',W-m.r).attr('y1',y(0)).attr('y2',y(0)).attr('stroke','var(--border)');
+  const ccs=['var(--accent)','var(--a2)','var(--a3)','var(--a4)'];
+  chars.forEach((ch,ci)=>{ svg.selectAll(`.b${ci}`).data(data).enter().append('rect').attr('x',d=>x0(d.word)+x1(ch)).attr('width',x1.bandwidth()).attr('y',d=>y(Math.max(0,d[ch]))).attr('height',d=>Math.abs(y(d[ch])-y(0))).attr('fill',ccs[ci]).attr('rx',2).attr('opacity',.85); });
+  svg.append('g').attr('transform',`translate(0,${H-m.b})`).call(d3.axisBottom(x0)).selectAll('text').style('fill','var(--text2)').style('font-size','10px').attr('transform','rotate(-30)').attr('text-anchor','end');
+  svg.append('g').attr('transform',`translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5)).selectAll('text').style('fill','var(--text3)').style('font-size','10px');
+  svg.selectAll('.domain,.tick line').style('stroke','var(--border)');
+  chars.forEach((ch,i)=>{ svg.append('rect').attr('x',W-75).attr('y',m.t+i*17).attr('width',9).attr('height',9).attr('fill',ccs[i]).attr('rx',2); svg.append('text').attr('x',W-62).attr('y',m.t+i*17+8).attr('fill',ccs[i]).style('font-size','10px').text(ch); });
+}
+
+// ═══════════════════════════════════════════════
+// ⑦ 핵심어 TF-IDF
+// ═══════════════════════════════════════════════
+function renderTfidfTabs(){
+  const stages=DATA.stageOrder;
+  document.getElementById('tfidf-tabs').innerHTML=stages.map((st,i)=>
+    `<button onclick="showTfidf('${st}')" id="tt-${st}" style="padding:5px 15px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:700;background:${i===0?sc(st):'var(--bg3)'};color:${i===0?'#fff':'var(--text3)'};border:2px solid ${sc(st)};">${st}</button>`
+  ).join('');
+  showTfidf(stages[0]);
+}
+function showTfidf(stage){
+  DATA.stageOrder.forEach(st=>{ const b=document.getElementById('tt-'+st); if(b){b.style.background=st===stage?sc(st):'var(--bg3)';b.style.color=st===stage?'#fff':'var(--text3)';} });
+  const top=DATA.stageTfidf[stage]||[], maxTf=top[0]?.tfidf||1, maxF2=DATA.freqAll[0]?.[1]||1;
+  const col=sc(stage);
+  document.getElementById('tfidf-body').innerHTML=`<div>${top.map((d,i)=>{
+    const tfP=Math.round(d.tfidf/maxTf*100), medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    return `<div class="tfi" onclick="wSent('${d.word}')">
+      <div class="tfrk" style="background:${col}">${i+1}</div>
+      <div class="tfw">${medal} ${d.word}</div>
+      <div class="tfbars">
+        <div class="tfbr"><span style="min-width:50px">이 단계</span><div style="flex:1;height:10px;background:var(--bg4);border-radius:5px;overflow:hidden;"><div class="tfbi" style="width:${tfP}%;background:${col};"></div></div><span style="min-width:34px;text-align:right;color:${col};font-weight:700;">${d.freq}번</span></div>
+        <div class="tfbr"><span style="min-width:50px">전체</span><div style="flex:1;height:6px;background:var(--bg4);border-radius:5px;overflow:hidden;"><div class="tfbi" style="width:${Math.round(d.totalFreq/maxF2*100)}%;background:var(--text3);opacity:.4;"></div></div><span style="min-width:34px;text-align:right;">${d.totalFreq}번</span></div>
+      </div>
+      <div class="tfscore" style="color:${col}">★${d.tfidf.toFixed(1)}</div>
+    </div>`;
+  }).join('')}</div>
+  <div style="margin-top:12px;padding:10px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text3);">✏️ <b style="color:var(--text2)">읽는 법:</b> "이 단계" 막대가 길수록 이 장면 집중 단어예요. ★점수 높을수록 핵심어! 단어 클릭 → 원본 문장</div>`;
+}
+
+// ═══════════════════════════════════════════════
+// ⑧ 이북 리더
+// ═══════════════════════════════════════════════
+function initEbookStages(){
+  const sel=document.getElementById('eb-stage');
+  sel.innerHTML='<option value="all">전체</option>';
+  (DATA.stageOrder||[]).forEach(st=>sel.add(new Option(st,st)));
+}
+function renderEbook(){
+  const f=document.getElementById('eb-stage').value;
+  const showE=document.getElementById('eb-emo').checked, showS=document.getElementById('eb-stag').checked;
+  const sents=f==='all'?DATA.sentences:DATA.sentences.filter(s=>s.stage===f);
+  const pct=DATA.sentences.length?(sents[sents.length-1]?.no||0)/DATA.sentences.length*100:100;
+  document.getElementById('eprb').style.width=pct+'%';
+  document.getElementById('eb-text').innerHTML=sents.map(s=>{
+    const ec=s.emoScore>0?'pos':s.emoScore<0?'neg':'';
+    const et=showE&&s.emoScore!==0?`<span class="etag" style="background:${s.emoScore>0?'rgba(67,233,123,.15)':'rgba(255,101,132,.15)'};color:${s.emoScore>0?'var(--pos)':'var(--neg)'}">${s.emoScore>0?'+':''}${s.emoScore}</span>`:'';
+    const st=showS?`<span class="stage-tag s-${s.stage}">${s.stage}</span>`:'';
+    const sd=JSON.stringify({no:s.no,original:s.original,stage:s.stage,emoScore:s.emoScore,emoWords:s.emoWords}).replace(/'/g,'&#39;');
+    return `<div class="sblk"><div class="smeta">${st}${et}<span style="color:var(--text3)"> 문장 ${s.no}</span></div>${s.original}</div>`;
+  }).join('');
+  // 이벤트 위임
+  document.getElementById('eb-text').onclick=function(e){
+    const blk=e.target.closest('.sblk'); if(!blk)return;
+    const idx=[...document.querySelectorAll('.sblk')].indexOf(blk);
+    if(idx<0)return;
+    const s=sents[idx];
+    if(s) showSents([s],`문장 ${s.no}`);
+  };
+}
+
+// ═══════════════════════════════════════════════
+// 모달: 원본문장
+// ═══════════════════════════════════════════════
+function wSent(word){
+  if(IS_CSV){
+    // CSV 모드: 로컬에서 바로 필터
+    const sents=DATA.sentences.filter(s=>s.tokens.includes(word));
+    if(!sents.length){showSents([],'결과 없음');return;}
+    showSents(sents.map(s=>({no:s.no,original:s.original,stage:s.stage,emoScore:s.emoScore,emoWords:s.emoWords})),`"${word}" 포함 문장`);
+    return;
+  }
+  showLoading(`"${word}" 원문 검색 중…`,'');
+  google.script.run
+    .withSuccessHandler(sents=>{ hideLoading(); showSents(sents,`"${word}" 포함 문장`); })
+    .withFailureHandler(e=>{ hideLoading(); alert('오류:'+e.message); })
+    .getSentencesByWord(word, SHEET);
+}
+
+function showSents(sents, title){
+  document.getElementById('modal-ttl').textContent=title||'원본 문장';
+  document.getElementById('modal-body').innerHTML=(Array.isArray(sents)&&sents.length)?sents.map(s=>{
+    const ec=s.emoScore>0?'pos':s.emoScore<0?'neg':'';
+    const ew=s.emoWords&&s.emoWords.length?` · 감정어: ${s.emoWords.map(([w,e])=>`<span style="color:${e>0?'var(--pos)':'var(--neg)'}">${w}(${e>0?'+':''}${e})</span>`).join(', ')}`:'';
+    return `<div class="ms ${ec}"><div class="mm"><span class="stage-tag s-${s.stage}">${s.stage}</span> 문장 ${s.no}${ew}</div>${s.original}</div>`;
+  }).join(''):'<p style="color:var(--text3);text-align:center;padding:20px;">해당 문장 없음</p>';
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal(){ document.getElementById('modal').classList.remove('show'); }
+document.getElementById('modal').addEventListener('click',e=>{ if(e.target===document.getElementById('modal'))closeModal(); });
+</script>
+</body>
+</html>
