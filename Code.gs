@@ -1,11 +1,25 @@
 // =============================================
-// 텍스트마이닝 웹앱 - Code.gs v4.2
-// 창순기획 | 문학 텍스트마이닝 대시보드
+// 텍스트마이닝 웹앱 - Code.gs v5.0 (Web API Server)
+// 창순기획 | 문학 텍스트마이닝
 // =============================================
 
 const SHEET_EMO   = '감정어휘';
 const SHEET_STOP  = '불용어';
 const TEXT_PREFIX = '분석텍스트_';
+
+// 확장 불용어 사전 (노이즈 및 기능어 제거)
+const DEFAULT_STOPWORDS = [
+  '&quot;', 'quot', 'lt', 'gt', 'amp', 'nbsp',
+  '하다', '되다', '있다', '없다', '보다', '오다', '가다', '않다', '이다', '아니다',
+  '들다', '내다', '버리다', '놓이다', '이렇다', '어떻다', '그렇다', '저렇다', '게다',
+  '허다', '일이', '갈다', '치다', '주다', '받다', '모르다', '알다', '대하다',
+  '위하다', '말하다', '생각하다', '나오다', '들어가다', '나가다', '올라가다', '내려가다',
+  '가지다', '따르다', '자다', '먹다', '맞다', '이르다', '보이다', '느끼다',
+  '것', '수', '등', '때', '곳', '말', '날', '이', '그', '저', '분', '줄', '바',
+  '체', '뿐', '채', '만', '중', '후', '전', '점', '씨', '개', '번', '차', '명',
+  '자', '쪽', '편', '통', '권', '장', '마리', '원', '년', '월', '일', '시', '분', '초',
+  '아버', '어머'
+];
 
 // 스프레드시트 안전 획득 함수 (바인딩 시트 or ID/URL)
 function getSpreadsheet(customIdOrUrl) {
@@ -29,7 +43,54 @@ function getSpreadsheet(customIdOrUrl) {
   return null;
 }
 
+// ─── GET 요청 처리 (Web API: JSON & JSONP) ────────────
 function doGet(e) {
+  const p = (e && e.parameter) ? e.parameter : {};
+  const action = p.action || '';
+  const callback = p.callback || '';
+  const customId = p.spreadsheetId || p.url || '';
+
+  // 1. API 호출 처리 (action 파라미터가 있는 경우 JSON 반환)
+  if (action) {
+    let result = { success: false };
+    try {
+      if (action === 'list') {
+        result = getTextSheetList(customId);
+      } else if (action === 'data') {
+        const sheetName = p.sheet || '';
+        result = { success: true, data: getAllData(sheetName, customId) };
+      } else if (action === 'char') {
+        const sheetName = p.sheet || '';
+        const chars = (p.chars || '').split(',').filter(Boolean);
+        result = { success: true, data: getCharEmo(chars, sheetName, null, customId) };
+      } else if (action === 'assoc') {
+        const sheetName = p.sheet || '';
+        const keyword = p.keyword || '';
+        result = { success: true, data: getAssociation(keyword, sheetName, customId) };
+      } else if (action === 'sentences') {
+        const sheetName = p.sheet || '';
+        const word = p.word || '';
+        result = { success: true, data: getSentencesByWord(word, sheetName, customId) };
+      } else {
+        result = { success: false, message: '알 수 없는 action: ' + action };
+      }
+    } catch (err) {
+      result = { success: false, message: err.message, stack: err.stack };
+    }
+
+    const jsonStr = JSON.stringify(result);
+    if (callback) {
+      // JSONP 응답
+      return ContentService.createTextOutput(callback + '(' + jsonStr + ')')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    } else {
+      // JSON 응답
+      return ContentService.createTextOutput(jsonStr)
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // 2. 브라우저 직접 접속 시: index.html이 있으면 렌더링, 없으면 안내 페이지 출력
   try {
     return HtmlService.createHtmlOutputFromFile('index')
       .setTitle('📚 문학 텍스트마이닝 대시보드')
@@ -37,10 +98,15 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
   } catch (err) {
     return HtmlService.createHtmlOutput(
-      '<div style="font-family:sans-serif;padding:30px;line-height:1.8;text-align:center;">' +
-      '<h2 style="color:#ef4444;">⚠️ HTML 파일 로드 오류</h2>' +
-      '<p>Apps Script 편집기에서 <b>[+] 버튼 → [HTML]</b>을 클릭하고, 파일 이름을 <b>index</b> (소문자)로 생성한 후 코드를 붙여넣어 주세요.</p>' +
-      '<p style="color:#64748b;font-size:13px;">(상세 에러: ' + err.message + ')</p>' +
+      '<div style="font-family:sans-serif;padding:30px;line-height:1.8;text-align:center;background:#0e1117;color:#fff;min-height:100vh;">' +
+      '<h2 style="color:#6366f1;font-size:24px;">📚 문학 텍스트마이닝 API 서버 실행 중</h2>' +
+      '<p style="color:#94a3b8;font-size:14px;margin-top:10px;">본 Google Apps Script는 <b>GitHub 저장소에 호스팅된 index.html 웹앱의 백엔드 API</b>로 정상 작동 중입니다.</p>' +
+      '<div style="background:#1e2337;padding:16px;border-radius:12px;margin:20px auto;max-width:500px;text-align:left;font-size:13px;border:1px solid #334155;">' +
+      '<b>✅ 사용 방법:</b><br>' +
+      '1. 깃허브 저장소(GitHub Pages) 또는 로컬에서 <code>index.html</code>을 실행합니다.<br>' +
+      '2. 웹앱의 시작 화면에서 본 GAS URL을 통해 구글 시트 데이터를 실시간으로 가져옵니다.' +
+      '</div>' +
+      '<p style="color:#64748b;font-size:12px;">GAS 엔드포인트: ' + ScriptApp.getService().getUrl() + '</p>' +
       '</div>'
     );
   }
@@ -62,64 +128,76 @@ function getTextSheetList(customIdOrUrl) {
   }
 }
 
-// ─── 품사 추론 (형태소 규칙 기반) ────────────────────
+// ─── 품사 추론 및 정규화 ─────────────────────────────
 function inferPOS(token) {
   if (token.endsWith('다') && token.length >= 2) return 'verb';
   if (/[기지이고도로히]$/.test(token) && token.length >= 3) return 'adv';
   return 'noun';
 }
 
+function cleanToken(token) {
+  if (!token) return '';
+  let t = token.replace(/&quot;|quot|[.,?!;:~"'`「」『』()<>{}\\[\\]*^#@$%&+=/\\\\|]/g, '').trim();
+  if (t === '아버') t = '아버지';
+  if (t === '어머') t = '어머니';
+  return t;
+}
+
 // ─── 공유 사전 로드 ──────────────────────────────────
 function loadSharedDicts(ss) {
-  let emoDict = {}, stopSet = new Set();
-  try {
-    const emoSheet = ss.getSheetByName(SHEET_EMO);
-    if (emoSheet) {
-      const emoData = emoSheet.getDataRange().getValues();
-      for (let i = 1; i < emoData.length; i++) {
-        if (emoData[i][0]) emoDict[String(emoData[i][0]).trim()] = Number(emoData[i][1]) || 0;
+  let emoDict = {}, stopSet = new Set(DEFAULT_STOPWORDS);
+  if (ss) {
+    try {
+      const emoSheet = ss.getSheetByName(SHEET_EMO);
+      if (emoSheet) {
+        const emoData = emoSheet.getDataRange().getValues();
+        for (let i = 1; i < emoData.length; i++) {
+          if (emoData[i][0]) emoDict[String(emoData[i][0]).trim()] = Number(emoData[i][1]) || 0;
+        }
       }
+    } catch (e) {
+      console.warn('감정어휘 시트 로드 실패:', e);
     }
-  } catch (e) {
-    console.warn('감정어휘 시트 로드 실패:', e);
-  }
 
-  try {
-    const stopSheet = ss.getSheetByName(SHEET_STOP);
-    if (stopSheet) {
-      const stopData = stopSheet.getDataRange().getValues();
-      for (let i = 1; i < stopData.length; i++) {
-        if (stopData[i][0]) stopSet.add(String(stopData[i][0]).trim());
+    try {
+      const stopSheet = ss.getSheetByName(SHEET_STOP);
+      if (stopSheet) {
+        const stopData = stopSheet.getDataRange().getValues();
+        for (let i = 1; i < stopData.length; i++) {
+          if (stopData[i][0]) stopSet.add(String(stopData[i][0]).trim());
+        }
       }
+    } catch (e) {
+      console.warn('불용어 시트 로드 실패:', e);
     }
-  } catch (e) {
-    console.warn('불용어 시트 로드 실패:', e);
   }
-
   return { emoDict, stopSet };
 }
 
-// ─── 공통 파서 ───────────────────────────────────────
+// ─── 공통 파서 (정밀 형태소 클리닝) ──────────────────
 function parseSentences(rows, stopSet, emoDict) {
   const sentences = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
     if (!r[0] && r[0] !== 0) continue;
-    const raw = String(r[2] || '').split(/\s+/).map(t => t.trim()).filter(t => t.length > 1 && t !== 'nan');
-    const tokens = raw.filter(t => !stopSet.has(t));
-    const tagged = tokens.map(t => ({ t, pos: inferPOS(t) }));
+    const rawTokens = String(r[2] || '').split(/\s+/)
+      .map(t => cleanToken(t))
+      .filter(t => t.length > 1 && t !== 'nan' && !stopSet.has(t));
+
+    const tagged = rawTokens.map(t => ({ t, pos: inferPOS(t) }));
     const emoWords = [];
     let emoScore = 0;
-    tokens.forEach(t => {
+    rawTokens.forEach(t => {
       if (t in emoDict) {
         emoWords.push([t, emoDict[t]]);
         emoScore += emoDict[t];
       }
     });
+
     sentences.push({
       no: Number(r[0]),
       original: String(r[1] || ''),
-      tokens,
+      tokens: rawTokens,
       tagged,
       stage: String(r[3] || '기타').trim(),
       speaker: r[4] ? String(r[4]).trim() : '',
