@@ -916,15 +916,32 @@ async function loadSheet(name) {
   showLoading('구글 시트 데이터 로딩 중…', name);
   CURRENT_NAME = name;
   try {
-    const data = await callGasApi('data', { sheet: name });
-    if (data && data.sentences) {
-      ALL_DATA_CACHE[name] = data;
-      onDataReady(data, 'sheet');
+    const res = await callGasApi('data', { sheet: name });
+    let processed = null;
+    if (res && res.rawRows && res.rawRows.length) {
+      // 1행 헤더 여부 확인 후 데이터 파싱
+      const raw = res.rawRows;
+      const label = res.label || name.replace(/^분석텍스트_/, '');
+      processed = processRawSentences(raw, label, name);
+    } else if (res && res.data && res.data.rawRows) {
+      const raw = res.data.rawRows;
+      const label = res.data.label || name.replace(/^분석텍스트_/, '');
+      processed = processRawSentences(raw, label, name);
+    } else if (res && res.sentences) {
+      processed = res;
+    } else if (res && res.data && res.data.sentences) {
+      processed = res.data;
+    } else if (Array.isArray(res)) {
+      processed = processRawSentences(res, name.replace(/^분석텍스트_/, ''), name);
     } else {
-      throw new Error('데이터 형식이 올바르지 않습니다.');
+      throw new Error('시트에서 데이터를 읽어오지 못했습니다.');
     }
+
+    ALL_DATA_CACHE[name] = processed;
+    onDataReady(processed, 'sheet');
   } catch (e) {
     hideLoading();
+    console.error('loadSheet error:', e);
     alert('시트 로드 오류: ' + (e.message || e) + '\n내장 기본 작품(소나기)으로 전환합니다.');
     loadBuiltinWork('sonagi');
   }

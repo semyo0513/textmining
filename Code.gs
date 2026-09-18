@@ -58,7 +58,7 @@ function doGet(e) {
         result = getTextSheetList(customId);
       } else if (action === 'data') {
         const sheetName = p.sheet || '';
-        result = { success: true, data: getAllData(sheetName, customId) };
+        result = getAllData(sheetName, customId);
       } else if (action === 'char') {
         const sheetName = p.sheet || '';
         const chars = (p.chars || '').split(',').filter(Boolean);
@@ -222,15 +222,26 @@ function parseSentences(rows, stopSet, emoDict) {
   return sentences;
 }
 
-// ─── 메인 데이터 (시트 기반) ─────────────────────────
+// ─── 메인 데이터 (시트 기반 - 초고속 로딩) ───────────
 function getAllData(sheetName, customIdOrUrl) {
   const ss = getSpreadsheet(customIdOrUrl);
   if (!ss) throw new Error('스프레드시트를 열 수 없습니다. 시트 URL/ID를 확인하거나 내장 모드를 이용해 주세요.');
-  const { emoDict, stopSet } = loadSharedDicts(ss);
-  const sheet = ss.getSheetByName(sheetName);
+
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.getSheetByName(TEXT_PREFIX + sheetName) || ss.getSheetByName(sheetName.replace(TEXT_PREFIX, ''));
+  }
   if (!sheet) throw new Error('시트를 찾을 수 없습니다: ' + sheetName);
-  const sentences = parseSentences(sheet.getDataRange().getValues(), stopSet, emoDict);
-  return buildResult(sentences, sheetName, sheetName.replace(TEXT_PREFIX, ''));
+
+  const rawRows = sheet.getDataRange().getValues();
+  const label = sheet.getName().replace(TEXT_PREFIX, '');
+
+  return {
+    success: true,
+    sheetName: sheet.getName(),
+    label: label,
+    rawRows: rawRows
+  };
 }
 
 // ─── CSV 업로드 분석 ─────────────────────────────────
