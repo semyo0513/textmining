@@ -863,19 +863,22 @@ async function fetchSheetList() {
 
   try {
     const res = await callGasApi('list');
-    if (res && res.sheets && res.sheets.length) {
+    const sheets = (res && (res.sheets || res.list)) || [];
+    if (sheets.length) {
       s1.innerHTML = '';
       const s2 = document.getElementById('sheet-sel');
       s2.innerHTML = '<option value="builtin:sonagi">황순원 〈소나기〉 (내장)</option><option value="builtin:doldari">이태준 〈돌다리〉 (내장)</option>';
 
-      res.sheets.forEach(sh => {
-        s1.add(new Option(sh.label, sh.name));
-        s2.add(new Option('📊 ' + sh.label + ' (시트)', sh.name));
+      sheets.forEach(sh => {
+        s1.add(new Option(sh.label || sh.name, sh.name));
+        s2.add(new Option('📊 ' + (sh.label || sh.name) + ' (시트)', sh.name));
       });
-      if (statusEl) statusEl.textContent = '🟢 구글 시트 연동됨 (' + res.sheets.length + '개 작품)';
+      const title = res.ssTitle ? ` [${res.ssTitle}]` : '';
+      if (statusEl) statusEl.textContent = '🟢 구글 시트 연동됨 (' + sheets.length + '개 작품)' + title;
     } else {
-      s1.innerHTML = '<option value="">(분석텍스트_ 시트가 없습니다)</option>';
-      if (statusEl) statusEl.textContent = '📊 구글 스프레드시트 연동';
+      const msg = res?.message || '스프레드시트에 분석 가능한 시트가 없습니다';
+      s1.innerHTML = `<option value="">(${msg})</option>`;
+      if (statusEl) statusEl.textContent = '⚠️ ' + msg;
     }
   } catch (err) {
     console.warn('시트 목록 로드 실패:', err);

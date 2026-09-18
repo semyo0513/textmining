@@ -116,15 +116,26 @@ function doGet(e) {
 function getTextSheetList(customIdOrUrl) {
   try {
     const ss = getSpreadsheet(customIdOrUrl);
-    if (!ss) return { success: false, list: [], message: '스프레드시트를 찾을 수 없습니다.' };
-    const list = ss.getSheets()
-      .map(s => s.getName())
+    if (!ss) return { success: false, list: [], sheets: [], message: '스프레드시트를 찾을 수 없습니다. 스프레드시트 URL이나 ID를 확인해 주세요.' };
+
+    const allSheetNames = ss.getSheets().map(s => s.getName());
+    
+    // 1. '분석텍스트_' 접두사 시트 우선 검색
+    let list = allSheetNames
       .filter(n => n.startsWith(TEXT_PREFIX))
       .map(n => ({ name: n, label: n.replace(TEXT_PREFIX, '') }));
-    return { success: true, list, ssTitle: ss.getName() };
+
+    // 2. 접두사 시트가 없는 경우, '감정어휘'/'불용어'를 제외한 일반 시트 모두 포함
+    if (!list.length) {
+      list = allSheetNames
+        .filter(n => n !== SHEET_EMO && n !== SHEET_STOP)
+        .map(n => ({ name: n, label: n }));
+    }
+
+    return { success: true, list, sheets: list, ssTitle: ss.getName() };
   } catch (err) {
     console.error('getTextSheetList error:', err);
-    return { success: false, list: [], message: err.message };
+    return { success: false, list: [], sheets: [], message: err.message };
   }
 }
 
