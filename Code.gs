@@ -1,12 +1,21 @@
 // =============================================
-// 텍스트마이닝 웹앱 - Code.gs v4
+// 텍스트마이닝 웹앱 - Code.gs v4.1
 // 창순기획 | 문학 텍스트마이닝 대시보드
 // =============================================
 
-const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet() ? SpreadsheetApp.getActiveSpreadsheet().getId() : '';
 const SHEET_EMO   = '감정어휘';
 const SHEET_STOP  = '불용어';
 const TEXT_PREFIX = '분석텍스트_';
+
+function getSpreadsheet() {
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active;
+  } catch (e) {
+    console.warn('getActiveSpreadsheet failed:', e);
+  }
+  return null;
+}
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
@@ -18,7 +27,7 @@ function doGet() {
 // ─── 분석 텍스트 시트 목록 ───────────────────────────
 function getTextSheetList() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet() || (SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : null);
+    const ss = getSpreadsheet();
     if (!ss) return [];
     return ss.getSheets()
       .map(s => s.getName())
@@ -100,7 +109,8 @@ function parseSentences(rows, stopSet, emoDict) {
 
 // ─── 메인 데이터 (시트 기반) ─────────────────────────
 function getAllData(sheetName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSpreadsheet();
+  if (!ss) throw new Error('스프레드시트를 열 수 없습니다. 내장 모드를 이용해 주세요.');
   const { emoDict, stopSet } = loadSharedDicts(ss);
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) throw new Error('시트를 찾을 수 없습니다: ' + sheetName);
@@ -110,7 +120,7 @@ function getAllData(sheetName) {
 
 // ─── CSV 업로드 분석 ─────────────────────────────────
 function analyzeCSV(csvText, label) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet() || (SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : null);
+  const ss = getSpreadsheet();
   let emoDict = {}, stopSet = new Set();
   if (ss) {
     const dicts = loadSharedDicts(ss);
@@ -244,7 +254,7 @@ function buildResult(sentences, sheetName, label) {
 // ─── 인물(키워드) 감정 & 관계 분석 ───────────────────
 function getCharEmo(keywords, sheetName, csvData) {
   let sentences = [];
-  const ss = SpreadsheetApp.getActiveSpreadsheet() || (SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : null);
+  const ss = getSpreadsheet();
   let emoDict = {}, stopSet = new Set();
   if (ss) {
     const d = loadSharedDicts(ss);
@@ -294,7 +304,7 @@ function getCharEmo(keywords, sheetName, csvData) {
 
 // ─── 연관어 검색 ─────────────────────────────────────
 function getAssociation(keyword, sheetName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet() || (SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : null);
+  const ss = getSpreadsheet();
   let stopSet = new Set();
   if (ss) stopSet = loadSharedDicts(ss).stopSet;
   if (!ss || !sheetName) return { keyword, associations: [], sentences: [] };
@@ -323,7 +333,7 @@ function getAssociation(keyword, sheetName) {
 
 // ─── 단어 → 원본문장 조회 ────────────────────────────
 function getSentencesByWord(word, sheetName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet() || (SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : null);
+  const ss = getSpreadsheet();
   let emoDict = {}, stopSet = new Set();
   if (ss) {
     const dicts = loadSharedDicts(ss);

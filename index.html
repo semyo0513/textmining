@@ -31,7 +31,7 @@ html,body{height:100%;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,
 
 /* ── 오버레이 & 로딩 ── */
 .overlay{position:fixed;inset:0;background:rgba(14,17,23,.92);backdrop-filter:blur(6px);z-index:8000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
-.overlay.hide{display:none;}
+.overlay.hide{display:none !important;}
 .spinner{width:46px;height:46px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .9s cubic-bezier(.55,.15,.45,.85) infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .ov-msg{font-size:15px;font-weight:700;color:var(--text);}
@@ -39,28 +39,31 @@ html,body{height:100%;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,
 
 /* ── 시작 / 작품 선택 화면 ── */
 #select-screen{position:fixed;inset:0;background:radial-gradient(circle at top,#1e2238 0%,#0e1117 80%);z-index:7000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;}
-#select-screen.hide{display:none;}
-.sel-card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:34px 28px;max-width:520px;width:100%;box-shadow:0 20px 40px rgba(0,0,0,.5);text-align:center;}
+#select-screen.hide{display:none !important;}
+.sel-card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:34px 28px;max-width:540px;width:100%;box-shadow:0 20px 40px rgba(0,0,0,.5);text-align:center;}
 .sel-card .logo-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,.15);border:1px solid var(--accent);color:var(--accent);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:12px;}
 .sel-card h2{font-size:26px;font-weight:900;color:#fff;margin-bottom:6px;letter-spacing:-.5px;}
 .sel-card h2 span{background:linear-gradient(135deg,var(--accent),var(--a4));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .sel-card p{font-size:13px;color:var(--text3);margin-bottom:20px;line-height:1.5;}
 
-.work-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
-.work-btn{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 10px;color:var(--text);cursor:pointer;text-align:left;transition:all .2s;display:flex;flex-direction:column;gap:4px;}
-.work-btn:hover{border-color:var(--accent);background:var(--bg4);transform:translateY(-2px);box-shadow:0 6px 16px rgba(99,102,241,.2);}
-.work-btn .w-title{font-size:14px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:5px;}
-.work-btn .w-sub{font-size:11px;color:var(--text3);}
+.work-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.work-btn{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 12px;color:var(--text);cursor:pointer;text-align:left;transition:all .2s;display:flex;flex-direction:column;gap:5px;}
+.work-btn:hover{border-color:var(--accent);background:var(--bg4);transform:translateY(-2px);box-shadow:0 8px 20px rgba(99,102,241,.25);}
+.work-btn .w-title{font-size:15px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px;}
+.work-btn .w-sub{font-size:11px;color:var(--text3);line-height:1.4;}
 
-.sel-card select{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;font-weight:600;}
-.primary-btn{width:100%;background:linear-gradient(135deg,var(--accent),#4f46e5);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+.sheet-box{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;text-align:left;}
+.sheet-box-title{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
+.sheet-box select{width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:10px;font-weight:600;}
+
+.primary-btn{width:100%;background:linear-gradient(135deg,var(--accent),#4f46e5);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
 .primary-btn:hover{background:linear-gradient(135deg,#4f46e5,#4338ca);transform:translateY(-1px);box-shadow:0 4px 14px rgba(99,102,241,.4);}
 
-.or-divider{color:var(--text4);font-size:11px;margin:12px 0;position:relative;}
-.or-divider::before,.or-divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:var(--border);}
+.or-divider{color:var(--text4);font-size:11px;margin:14px 0;position:relative;}
+.or-divider::before,.or-divider::after{content:'';position:absolute;top:50%;width:38%;height:1px;background:var(--border);}
 .or-divider::before{left:0;} .or-divider::after{right:0;}
 
-.csv-zone{border:2px dashed var(--border-light);border-radius:12px;padding:16px;cursor:pointer;background:rgba(255,255,255,.02);transition:all .2s;}
+.csv-zone{border:2px dashed var(--border-light);border-radius:12px;padding:14px;cursor:pointer;background:rgba(255,255,255,.02);transition:all .2s;}
 .csv-zone:hover,.csv-zone.drag-over{border-color:var(--accent);background:rgba(99,102,241,.08);}
 .csv-zone p{font-size:12px;color:var(--text2);margin:0;}
 .csv-zone span{font-size:11px;color:var(--text4);margin-top:4px;display:block;}
@@ -240,7 +243,7 @@ html,body{height:100%;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,
 </head>
 <body>
 
-<!-- 전역 로딩 -->
+<!-- 전역 로딩 (기본 숨김) -->
 <div id="loading" class="overlay hide">
   <div class="spinner"></div>
   <div class="ov-msg" id="load-msg">데이터 분석 중…</div>
@@ -252,10 +255,10 @@ html,body{height:100%;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,
   <div class="sel-card">
     <div class="logo-badge">✨ 문학 텍스트마이닝 학습 시스템</div>
     <h2>📚 <span>문학 텍스트마이닝</span> 대시보드</h2>
-    <p>기본 문학 작품을 선택하거나, 내 컴퓨터의 CSV 파일 및 구글 시트를 불러와 분석하세요.</p>
+    <p>아래에서 기본 문학 작품을 선택하거나, CSV 파일을 불러와 분석을 시작하세요.</p>
 
-    <!-- 내장 작품 바로가기 -->
-    <div style="font-size:12px;font-weight:700;color:var(--text2);text-align:left;margin-bottom:8px;">📖 내장 문학 작품 바로 분석하기</div>
+    <!-- 내장 작품 바로가기 (언제든 0.1초 만에 즉시 실행) -->
+    <div style="font-size:13px;font-weight:800;color:var(--text2);text-align:left;margin-bottom:8px;">📖 기본 문학 작품 선택 (즉시 분석)</div>
     <div class="work-grid">
       <button class="work-btn" onclick="loadBuiltinWork('sonagi')">
         <span class="w-title">🌧️ 황순원 〈소나기〉</span>
@@ -267,14 +270,19 @@ html,body{height:100%;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,
       </button>
     </div>
 
-    <!-- 구글 시트 선택 (GAS 연동 시) -->
-    <div id="sheet-sel-container" style="display:none;margin-top:10px;">
-      <div style="font-size:12px;font-weight:700;color:var(--text2);text-align:left;margin-bottom:6px;">📊 구글 스프레드시트 선택</div>
-      <select id="init-sheet-sel"></select>
-      <button class="primary-btn" onclick="startSheet()">시트 데이터로 분석 시작 →</button>
+    <!-- 구글 시트 선택 영역 -->
+    <div class="sheet-box" id="sheet-sel-box">
+      <div class="sheet-box-title">
+        <span>📊 구글 스프레드시트 연동</span>
+        <button class="btn-sm" onclick="fetchSheetList()" style="font-size:10px;padding:2px 6px;">🔄 목록 갱신</button>
+      </div>
+      <select id="init-sheet-sel">
+        <option value="">(연동된 시트 목록 확인 중...)</option>
+      </select>
+      <button class="primary-btn" onclick="startSheet()">선택한 시트로 분석 시작 →</button>
     </div>
 
-    <div class="or-divider">또는 나만의 문학 텍스트 업로드</div>
+    <div class="or-divider">또는 나만의 CSV 파일 업로드</div>
 
     <!-- CSV 업로드 드롭존 -->
     <div class="csv-zone" id="drop-zone" onclick="document.getElementById('csv-file').click()">
@@ -771,57 +779,72 @@ function showLoading(msg = '분석 중…', sub = '잠시만 기다려 주세요
   document.getElementById('load-sub').textContent = sub;
   document.getElementById('loading').classList.remove('hide');
 }
-function hideLoading() { document.getElementById('loading').classList.add('hide'); }
+function hideLoading() {
+  document.getElementById('loading').classList.add('hide');
+}
 
 // ═══════════════════════════════════════════════
-// 초기화 및 환경 감지
+// 초기화 및 환경 감지 (논블로킹)
 // ═══════════════════════════════════════════════
 window.onload = () => {
-  // 드래그 앤 드롭
-  const dz = document.getElementById('drop-zone');
-  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
-  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
-  dz.addEventListener('drop', e => {
-    e.preventDefault();
-    dz.classList.remove('drag-over');
-    const f = e.dataTransfer.files[0];
-    if (f) loadCSVFile(f);
-  });
+  // 시작 시 전역 로딩 오버레이 닫힘 보장
+  hideLoading();
 
-  // GAS 환경인지 확인
+  // 기본적으로 두 작품 사전 캐싱 (즉시 실행 준비 완료)
+  ALL_DATA_CACHE['sonagi'] = processRawSentences(BUILTIN_DATA.sonagi, '소나기', 'sonagi');
+  ALL_DATA_CACHE['dongbaek'] = processRawSentences(BUILTIN_DATA.dongbaek, '동백꽃', 'dongbaek');
+
+  // 드롭다운 기본 옵션 채우기
+  const s2 = document.getElementById('sheet-sel');
+  s2.innerHTML = '';
+  s2.add(new Option('🌧️ 황순원 〈소나기〉 (기본)', 'builtin:sonagi'));
+  s2.add(new Option('🌸 김유정 〈동백꽃〉 (기본)', 'builtin:dongbaek'));
+
+  // 드래그 앤 드롭 이벤트
+  const dz = document.getElementById('drop-zone');
+  if (dz) {
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault();
+      dz.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) loadCSVFile(f);
+    });
+  }
+
+  // GAS 환경 시트 목록 비동기 조회
+  fetchSheetList();
+};
+
+function fetchSheetList() {
   if (typeof google !== 'undefined' && google.script && google.script.run) {
     IS_OFFLINE = false;
     google.script.run
       .withSuccessHandler(list => {
+        const s1 = document.getElementById('init-sheet-sel');
+        const s2 = document.getElementById('sheet-sel');
+        s1.innerHTML = '';
         if (list && list.length) {
-          document.getElementById('sheet-sel-container').style.display = 'block';
-          const s1 = document.getElementById('init-sheet-sel');
-          const s2 = document.getElementById('sheet-sel');
-          s1.innerHTML = ''; s2.innerHTML = '';
-          s2.add(new Option('🌧️ 황순원 〈소나기〉 (기본)', 'builtin:sonagi'));
-          s2.add(new Option('🌸 김유정 〈동백꽃〉 (기본)', 'builtin:dongbaek'));
           list.forEach(s => {
             s1.add(new Option(s.label, s.name));
             s2.add(new Option('📊 ' + s.label + ' (시트)', s.name));
           });
+        } else {
+          s1.add(new Option('(연동된 분석 시트 없음)', ''));
         }
       })
-      .withFailureHandler(() => {
-        console.log('GAS 시트 목록 로드 실패 -> 기본 내장 모드 사용');
+      .withFailureHandler(err => {
+        console.warn('시트 목록 로드 실패:', err);
+        const s1 = document.getElementById('init-sheet-sel');
+        s1.innerHTML = '<option value="">(시트 연동 필요 / 기본 작품 선택 권장)</option>';
       })
       .getTextSheetList();
   } else {
-    // 오프라인 / 로컬 브라우저 모드
-    const s2 = document.getElementById('sheet-sel');
-    s2.innerHTML = '';
-    s2.add(new Option('🌧️ 황순원 〈소나기〉 (기본)', 'builtin:sonagi'));
-    s2.add(new Option('🌸 김유정 〈동백꽃〉 (기본)', 'builtin:dongbaek'));
+    const s1 = document.getElementById('init-sheet-sel');
+    if (s1) s1.innerHTML = '<option value="">(오프라인 / 기본 작품 분석 모드)</option>';
   }
-
-  // 기본적으로 두 작품 사전 캐싱
-  ALL_DATA_CACHE['sonagi'] = processRawSentences(BUILTIN_DATA.sonagi, '소나기', '소나기');
-  ALL_DATA_CACHE['dongbaek'] = processRawSentences(BUILTIN_DATA.dongbaek, '동백꽃', '동백꽃');
-};
+}
 
 // ═══════════════════════════════════════════════
 // 데이터 로드 / 작품 전환
@@ -835,29 +858,38 @@ function loadBuiltinWork(workKey) {
     const data = processRawSentences(raw, label, workKey);
     ALL_DATA_CACHE[workKey] = data;
     onDataReady(data, 'builtin');
-  }, 100);
+  }, 50);
 }
 
 function startSheet() {
   const name = document.getElementById('init-sheet-sel').value;
-  if (!name) return alert('시트를 선택하세요');
+  if (!name) {
+    alert('구글 스프레드시트가 선택되지 않았습니다.\n위의 [기본 문학 작품 선택] 버튼을 눌러 소나기/동백꽃을 즉시 분석할 수 있습니다.');
+    return;
+  }
   loadSheet(name);
 }
 
 function loadSheet(name) {
   showLoading('구글 시트 데이터 로딩 중…', name);
   CURRENT_NAME = name;
-  google.script.run
-    .withSuccessHandler(data => {
-      ALL_DATA_CACHE[name] = data;
-      onDataReady(data, 'sheet');
-    })
-    .withFailureHandler(e => {
-      hideLoading();
-      alert('시트 로드 실패: ' + e.message + '\n내장 기본 텍스트(소나기)로 전환합니다.');
-      loadBuiltinWork('sonagi');
-    })
-    .getAllData(name);
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(data => {
+        ALL_DATA_CACHE[name] = data;
+        onDataReady(data, 'sheet');
+      })
+      .withFailureHandler(e => {
+        hideLoading();
+        alert('시트 로드 오류: ' + (e.message || e) + '\n내장 기본 텍스트(소나기)로 전환합니다.');
+        loadBuiltinWork('sonagi');
+      })
+      .getAllData(name);
+  } else {
+    hideLoading();
+    alert('구글 시트 연결 환경이 아닙니다. 내장 기본 텍스트(소나기)로 분석합니다.');
+    loadBuiltinWork('sonagi');
+  }
 }
 
 function onSheetDropdownChange(val) {
@@ -881,6 +913,7 @@ function reloadCurrent() {
 function showSelectScreen() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('select-screen').classList.remove('hide');
+  hideLoading();
 }
 
 function handleCSVFile(input) {
@@ -1603,7 +1636,7 @@ function analyzeChars() {
     renderCharCards();
     renderCharCmp();
     renderCharNetwork();
-  }, 100);
+  }, 50);
 }
 
 function renderCharCards() {
