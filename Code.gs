@@ -137,7 +137,10 @@ function inferPOS(token) {
 
 function cleanToken(token) {
   if (!token) return '';
-  let t = token.replace(/&quot;|quot|[.,?!;:~"'`「」『』()<>{}\\[\\]*^#@$%&+=/\\\\|]/g, '').trim();
+  let t = String(token)
+    .replace(/&quot;|quot/g, '')
+    .replace(/[.,?!;:~"'`「」『』()<>{}\[\]*^#@$%&+=\/\\|\-]/g, '')
+    .trim();
   if (t === '아버') t = '아버지';
   if (t === '어머') t = '어머니';
   return t;
