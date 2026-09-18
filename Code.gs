@@ -1,5 +1,5 @@
 // =============================================
-// 텍스트마이닝 웹앱 - Code.gs v4.1
+// 텍스트마이닝 웹앱 - Code.gs v4.2
 // 창순기획 | 문학 텍스트마이닝 대시보드
 // =============================================
 
@@ -7,7 +7,19 @@ const SHEET_EMO   = '감정어휘';
 const SHEET_STOP  = '불용어';
 const TEXT_PREFIX = '분석텍스트_';
 
-function getSpreadsheet() {
+// 스프레드시트 안전 획득 함수 (바인딩 시트 or ID/URL)
+function getSpreadsheet(customIdOrUrl) {
+  if (customIdOrUrl) {
+    try {
+      if (customIdOrUrl.includes('docs.google.com/spreadsheets')) {
+        return SpreadsheetApp.openByUrl(customIdOrUrl);
+      } else {
+        return SpreadsheetApp.openById(customIdOrUrl);
+      }
+    } catch (e) {
+      console.warn('openById/Url failed:', e);
+    }
+  }
   try {
     const active = SpreadsheetApp.getActiveSpreadsheet();
     if (active) return active;
@@ -17,25 +29,36 @@ function getSpreadsheet() {
   return null;
 }
 
-function doGet() {
-  return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('📚 문학 텍스트마이닝 대시보드')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+function doGet(e) {
+  try {
+    return HtmlService.createHtmlOutputFromFile('index')
+      .setTitle('📚 문학 텍스트마이닝 대시보드')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  } catch (err) {
+    return HtmlService.createHtmlOutput(
+      '<div style="font-family:sans-serif;padding:30px;line-height:1.8;text-align:center;">' +
+      '<h2 style="color:#ef4444;">⚠️ HTML 파일 로드 오류</h2>' +
+      '<p>Apps Script 편집기에서 <b>[+] 버튼 → [HTML]</b>을 클릭하고, 파일 이름을 <b>index</b> (소문자)로 생성한 후 코드를 붙여넣어 주세요.</p>' +
+      '<p style="color:#64748b;font-size:13px;">(상세 에러: ' + err.message + ')</p>' +
+      '</div>'
+    );
+  }
 }
 
 // ─── 분석 텍스트 시트 목록 ───────────────────────────
-function getTextSheetList() {
+function getTextSheetList(customIdOrUrl) {
   try {
-    const ss = getSpreadsheet();
-    if (!ss) return [];
-    return ss.getSheets()
+    const ss = getSpreadsheet(customIdOrUrl);
+    if (!ss) return { success: false, list: [], message: '스프레드시트를 찾을 수 없습니다.' };
+    const list = ss.getSheets()
       .map(s => s.getName())
       .filter(n => n.startsWith(TEXT_PREFIX))
       .map(n => ({ name: n, label: n.replace(TEXT_PREFIX, '') }));
+    return { success: true, list, ssTitle: ss.getName() };
   } catch (err) {
     console.error('getTextSheetList error:', err);
-    return [];
+    return { success: false, list: [], message: err.message };
   }
 }
 
@@ -108,9 +131,9 @@ function parseSentences(rows, stopSet, emoDict) {
 }
 
 // ─── 메인 데이터 (시트 기반) ─────────────────────────
-function getAllData(sheetName) {
-  const ss = getSpreadsheet();
-  if (!ss) throw new Error('스프레드시트를 열 수 없습니다. 내장 모드를 이용해 주세요.');
+function getAllData(sheetName, customIdOrUrl) {
+  const ss = getSpreadsheet(customIdOrUrl);
+  if (!ss) throw new Error('스프레드시트를 열 수 없습니다. 시트 URL/ID를 확인하거나 내장 모드를 이용해 주세요.');
   const { emoDict, stopSet } = loadSharedDicts(ss);
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) throw new Error('시트를 찾을 수 없습니다: ' + sheetName);

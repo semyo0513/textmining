@@ -40,11 +40,11 @@ html,body{height:100%;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,
 /* ── 시작 / 작품 선택 화면 ── */
 #select-screen{position:fixed;inset:0;background:radial-gradient(circle at top,#1e2238 0%,#0e1117 80%);z-index:7000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;}
 #select-screen.hide{display:none !important;}
-.sel-card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:34px 28px;max-width:540px;width:100%;box-shadow:0 20px 40px rgba(0,0,0,.5);text-align:center;}
+.sel-card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:32px 26px;max-width:560px;width:100%;box-shadow:0 20px 40px rgba(0,0,0,.5);text-align:center;}
 .sel-card .logo-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,.15);border:1px solid var(--accent);color:var(--accent);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:12px;}
-.sel-card h2{font-size:26px;font-weight:900;color:#fff;margin-bottom:6px;letter-spacing:-.5px;}
+.sel-card h2{font-size:25px;font-weight:900;color:#fff;margin-bottom:6px;letter-spacing:-.5px;}
 .sel-card h2 span{background:linear-gradient(135deg,var(--accent),var(--a4));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-.sel-card p{font-size:13px;color:var(--text3);margin-bottom:20px;line-height:1.5;}
+.sel-card p{font-size:13px;color:var(--text3);margin-bottom:18px;line-height:1.5;}
 
 .work-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
 .work-btn{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 12px;color:var(--text);cursor:pointer;text-align:left;transition:all .2s;display:flex;flex-direction:column;gap:5px;}
@@ -54,7 +54,9 @@ html,body{height:100%;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,
 
 .sheet-box{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;text-align:left;}
 .sheet-box-title{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
-.sheet-box select{width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:10px;font-weight:600;}
+.sheet-box select{width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:8px;font-weight:600;}
+.custom-ss-wrap{display:flex;gap:6px;margin-bottom:8px;}
+.custom-ss-wrap input{flex:1;background:var(--bg4);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:11px;}
 
 .primary-btn{width:100%;background:linear-gradient(135deg,var(--accent),#4f46e5);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
 .primary-btn:hover{background:linear-gradient(135deg,#4f46e5,#4338ca);transform:translateY(-1px);box-shadow:0 4px 14px rgba(99,102,241,.4);}
@@ -255,9 +257,9 @@ html,body{height:100%;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,
   <div class="sel-card">
     <div class="logo-badge">✨ 문학 텍스트마이닝 학습 시스템</div>
     <h2>📚 <span>문학 텍스트마이닝</span> 대시보드</h2>
-    <p>아래에서 기본 문학 작품을 선택하거나, CSV 파일을 불러와 분석을 시작하세요.</p>
+    <p>아래에서 기본 문학 작품을 선택하거나, 구글 시트 및 CSV 파일을 연결하세요.</p>
 
-    <!-- 내장 작품 바로가기 (언제든 0.1초 만에 즉시 실행) -->
+    <!-- 내장 작품 바로가기 (언제든 0.05초 만에 즉시 실행) -->
     <div style="font-size:13px;font-weight:800;color:var(--text2);text-align:left;margin-bottom:8px;">📖 기본 문학 작품 선택 (즉시 분석)</div>
     <div class="work-grid">
       <button class="work-btn" onclick="loadBuiltinWork('sonagi')">
@@ -273,12 +275,16 @@ html,body{height:100%;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,
     <!-- 구글 시트 선택 영역 -->
     <div class="sheet-box" id="sheet-sel-box">
       <div class="sheet-box-title">
-        <span>📊 구글 스프레드시트 연동</span>
-        <button class="btn-sm" onclick="fetchSheetList()" style="font-size:10px;padding:2px 6px;">🔄 목록 갱신</button>
+        <span id="sheet-box-status">📊 구글 스프레드시트 연동</span>
+        <button class="btn-sm" onclick="fetchSheetList()" style="font-size:10px;padding:2px 8px;">🔄 목록 갱신</button>
       </div>
       <select id="init-sheet-sel">
-        <option value="">(연동된 시트 목록 확인 중...)</option>
+        <option value="">(시트 목록을 조회 중이거나 연동이 필요합니다)</option>
       </select>
+      <div class="custom-ss-wrap">
+        <input type="text" id="custom-ss-url" placeholder="시트가 안 뜨면 스프레드시트 URL/ID 입력 후 갱신">
+        <button class="btn-sm" onclick="fetchSheetList(document.getElementById('custom-ss-url').value.trim())">연결</button>
+      </div>
       <button class="primary-btn" onclick="startSheet()">선택한 시트로 분석 시작 →</button>
     </div>
 
@@ -631,6 +637,7 @@ const BUILTIN_DATA = {"sonagi":[[1,"소년은 개울가에서 소녀를 보자 �
 // ═══════════════════════════════════════════════
 let DATA = null;                  // 현재 활성화된 분석 결과
 let CURRENT_NAME = 'sonagi';      // 현재 작품 식별자
+let CURRENT_CUSTOM_URL = '';      // 수동 지정된 스프레드시트 URL/ID
 let IS_OFFLINE = true;            // GAS 미연결 또는 로컬 환경 여부
 let wcExcluded = new Set();       // 워드클라우드 제외 단어
 let charKeywords = [];            // 인물 키워드
@@ -787,7 +794,6 @@ function hideLoading() {
 // 초기화 및 환경 감지 (논블로킹)
 // ═══════════════════════════════════════════════
 window.onload = () => {
-  // 시작 시 전역 로딩 오버레이 닫힘 보장
   hideLoading();
 
   // 기본적으로 두 작품 사전 캐싱 (즉시 실행 준비 완료)
@@ -813,36 +819,43 @@ window.onload = () => {
     });
   }
 
-  // GAS 환경 시트 목록 비동기 조회
+  // 시트 목록 비동기 조회
   fetchSheetList();
 };
 
-function fetchSheetList() {
+function fetchSheetList(customUrl) {
+  if (customUrl !== undefined) CURRENT_CUSTOM_URL = customUrl;
+  const statusEl = document.getElementById('sheet-box-status');
+  const s1 = document.getElementById('init-sheet-sel');
+
+  if (statusEl) statusEl.textContent = '📊 구글 스프레드시트 조회 중…';
+
   if (typeof google !== 'undefined' && google.script && google.script.run) {
     IS_OFFLINE = false;
     google.script.run
-      .withSuccessHandler(list => {
-        const s1 = document.getElementById('init-sheet-sel');
-        const s2 = document.getElementById('sheet-sel');
+      .withSuccessHandler(res => {
+        if (statusEl) statusEl.textContent = '📊 구글 스프레드시트 연동';
         s1.innerHTML = '';
-        if (list && list.length) {
-          list.forEach(s => {
+        if (res && res.success && res.list && res.list.length) {
+          if (res.ssTitle && statusEl) statusEl.textContent = '📊 연동: ' + res.ssTitle;
+          const s2 = document.getElementById('sheet-sel');
+          res.list.forEach(s => {
             s1.add(new Option(s.label, s.name));
             s2.add(new Option('📊 ' + s.label + ' (시트)', s.name));
           });
         } else {
-          s1.add(new Option('(연동된 분석 시트 없음)', ''));
+          s1.add(new Option(res?.message || '(분석텍스트_ 시트가 없습니다. URL을 입력하세요)', ''));
         }
       })
       .withFailureHandler(err => {
         console.warn('시트 목록 로드 실패:', err);
-        const s1 = document.getElementById('init-sheet-sel');
-        s1.innerHTML = '<option value="">(시트 연동 필요 / 기본 작품 선택 권장)</option>';
+        if (statusEl) statusEl.textContent = '📊 구글 스프레드시트 연동';
+        s1.innerHTML = '<option value="">(시트 URL/ID를 아래에 입력하고 [연결]을 누르세요)</option>';
       })
-      .getTextSheetList();
+      .getTextSheetList(CURRENT_CUSTOM_URL);
   } else {
-    const s1 = document.getElementById('init-sheet-sel');
-    if (s1) s1.innerHTML = '<option value="">(오프라인 / 기본 작품 분석 모드)</option>';
+    if (statusEl) statusEl.textContent = '📊 구글 스프레드시트 연동';
+    if (s1) s1.innerHTML = '<option value="">(오프라인 / 상단 기본 작품으로 즉시 분석 가능)</option>';
   }
 }
 
@@ -858,13 +871,13 @@ function loadBuiltinWork(workKey) {
     const data = processRawSentences(raw, label, workKey);
     ALL_DATA_CACHE[workKey] = data;
     onDataReady(data, 'builtin');
-  }, 50);
+  }, 40);
 }
 
 function startSheet() {
   const name = document.getElementById('init-sheet-sel').value;
   if (!name) {
-    alert('구글 스프레드시트가 선택되지 않았습니다.\n위의 [기본 문학 작품 선택] 버튼을 눌러 소나기/동백꽃을 즉시 분석할 수 있습니다.');
+    alert('선택된 시트가 없습니다.\n구글 시트가 연결되지 않은 경우, 상단의 [기본 문학 작품]을 누르면 소나기/동백꽃을 즉시 분석할 수 있습니다.');
     return;
   }
   loadSheet(name);
@@ -884,7 +897,7 @@ function loadSheet(name) {
         alert('시트 로드 오류: ' + (e.message || e) + '\n내장 기본 텍스트(소나기)로 전환합니다.');
         loadBuiltinWork('sonagi');
       })
-      .getAllData(name);
+      .getAllData(name, CURRENT_CUSTOM_URL);
   } else {
     hideLoading();
     alert('구글 시트 연결 환경이 아닙니다. 내장 기본 텍스트(소나기)로 분석합니다.');
@@ -1636,7 +1649,7 @@ function analyzeChars() {
     renderCharCards();
     renderCharCmp();
     renderCharNetwork();
-  }, 50);
+  }, 40);
 }
 
 function renderCharCards() {
