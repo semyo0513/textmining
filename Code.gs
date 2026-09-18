@@ -229,7 +229,14 @@ function getAllData(sheetName, customIdOrUrl) {
 
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
-    sheet = ss.getSheetByName(TEXT_PREFIX + sheetName) || ss.getSheetByName(sheetName.replace(TEXT_PREFIX, ''));
+    sheet = ss.getSheetByName(TEXT_PREFIX + sheetName);
+  }
+  if (!sheet) {
+    sheet = ss.getSheetByName(sheetName.replace(TEXT_PREFIX, ''));
+  }
+  if (!sheet) {
+    const cleanTarget = sheetName.replace(TEXT_PREFIX, '').trim().toLowerCase();
+    sheet = ss.getSheets().find(s => s.getName().replace(TEXT_PREFIX, '').trim().toLowerCase() === cleanTarget);
   }
   if (!sheet) throw new Error('시트를 찾을 수 없습니다: ' + sheetName);
 

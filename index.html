@@ -692,7 +692,16 @@ function inferPOS(token) {
   return 'noun';
 }
 
-function processRawSentences(rawRows, label, id) {
+function processRawSentences(inputRows, label, id) {
+  let rawRows = [];
+  if (Array.isArray(inputRows)) {
+    rawRows = inputRows;
+  } else if (inputRows && inputRows.rawRows) {
+    rawRows = inputRows.rawRows;
+  } else if (inputRows && inputRows.sentences) {
+    return inputRows;
+  }
+
   const sentences = [];
   const freqMap = {};
   const coocMap = {};
@@ -700,10 +709,17 @@ function processRawSentences(rawRows, label, id) {
   const stageSentCount = { '발단': 0, '전개': 0, '위기': 0, '절정': 0, '결말': 0, '기타': 0 };
 
   rawRows.forEach((r, idx) => {
-    if (!r || r.length < 3) return;
-    const no = Number(r[0]) || (idx + 1);
+    if (!r || !Array.isArray(r) || r.length < 2) return;
+    // 1행 헤더 스킵
+    if (idx === 0 && (String(r[0]).includes('문장') || String(r[0]).includes('번호') || isNaN(Number(r[0])))) {
+      return;
+    }
+    const no = Number(r[0]) || (sentences.length + 1);
     const original = String(r[1] || '').trim();
-    const rawTokens = String(r[2] || '').split(/\s+/)
+    if (!original) return;
+
+    const morphCol = r[2] ? String(r[2]).trim() : '';
+    const rawTokens = (morphCol.length > 0 ? morphCol : original).split(/\s+/)
       .map(t => cleanToken(t))
       .filter(t => t.length > 1 && t !== 'nan' && !STOP_SET.has(t));
 
@@ -1083,11 +1099,14 @@ function sw(name) {
 
 // ── 품사 필터 ──
 function getPOS(prefix) {
-  const n = document.getElementById(prefix + '-n'), v = document.getElementById(prefix + '-v'), a = document.getElementById(prefix + '-a');
+  const n = document.getElementById(prefix + '-n') || document.getElementById(prefix + 'n') || document.getElementById('pn');
+  const v = document.getElementById(prefix + '-v') || document.getElementById(prefix + 'v') || document.getElementById('pv');
+  const a = document.getElementById(prefix + '-a') || document.getElementById(prefix + 'a') || document.getElementById('pa');
   const r = [];
-  if (n?.checked) r.push('noun');
-  if (v?.checked) r.push('verb');
-  if (a?.checked) r.push('adv');
+  if (n && n.checked) r.push('noun');
+  if (v && v.checked) r.push('verb');
+  if (a && a.checked) r.push('adv');
+  if (!r.length) return ['noun', 'verb', 'adv'];
   return r;
 }
 
@@ -1234,13 +1253,12 @@ function toggleW(w, c) { if (c) wcExcluded.delete(w); else wcExcluded.add(w); re
 function wcAll(c) { wcExcluded.clear(); document.querySelectorAll('#wl-items input').forEach(cb => cb.checked = c); renderWC(); }
 
 function renderWC() {
-  const topN = parseInt(document.getElementById('wc-top').value);
-  const mode = document.getElementById('wc-col').value;
+  if (!DATA || !DATA.sentences) return;
+  const topN = parseInt(document.getElementById('wc-top')?.value || '50');
+  const mode = document.getElementById('wc-col')?.value || 'cool';
   const freq = getFilteredFreq('p', 300);
   const top = freq.filter(([w]) => !wcExcluded.has(w)).slice(0, topN);
-  if (!top.length) return;
 
-  const maxF = top[0][1], minF = top[top.length - 1][1];
   const svg = d3.select('#wc-svg');
   svg.selectAll('*').remove();
 
@@ -1249,6 +1267,12 @@ function renderWC() {
   const H = (outer ? outer.clientHeight : 0) || 460;
   svg.attr('viewBox', `0 0 ${W} ${H}`).attr('width', '100%').attr('height', '100%');
 
+  if (!top.length) {
+    svg.append('text').attr('x', W / 2).attr('y', H / 2).attr('text-anchor', 'middle').attr('fill', 'var(--text3)').text('표시할 단어가 없습니다.');
+    return;
+  }
+
+  const maxF = top[0][1], minF = top[top.length - 1][1];
   const ss = d3.scaleSqrt().domain([minF, maxF]).range([14, 52]);
   const palCool = ['#00f2fe', '#4facfe', '#6366f1', '#a5b4fc', '#00f298', '#c084fc'];
   const palAccent = ['#6366f1', '#818cf8', '#a5b4fc', '#c084fc', '#ec4899', '#f43f5e'];
@@ -1268,13 +1292,13 @@ function renderWC() {
   }
 
   const placed = [];
-  function ov(nx, ny, nr) { return placed.some(p => { const dx = nx - p.x, dy = ny - p.y; return Math.sqrt(dx * dx + dy * dy) < nr + p.r + 6; }); }
+  function ov(nx, ny, nr) { return placed.some(p => { const dx = nx - p.x, dy = ny - p.y; return Math.sqrt(dx * dx + dy * dy) < nr + p.r + 5; }); }
 
   top.forEach(([w, f], idx) => {
     const fs = ss(f), r = Math.max(w.length * fs * .55, fs) / 2;
     let ok = false;
-    for (let st = 0; st < 700; st++) {
-      const a = st * .45, rad = st * 1.1;
+    for (let st = 0; st < 750; st++) {
+      const a = st * .45, rad = st * 1.05;
       const nx = W / 2 + rad * Math.cos(a), ny = H / 2 + rad * Math.sin(a) * .75;
       if (nx - r < 8 || nx + r > W - 8 || ny - r < 10 || ny + r > H - 10) continue;
       if (!ov(nx, ny, r)) {
